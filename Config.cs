@@ -16,10 +16,6 @@ public static class Config
     public static ConfigEntry<bool> Godmode { get; private set; }
     public static ConfigEntry<int> Resolution { get; private set; }
 
-
-
-
-
     public static void Init()
     {
         Category = ConfigSystem.CreateFileCategory("Base Configuration", "Base Configuration", "CameraFlow.cfg");
@@ -73,7 +69,7 @@ public static class Config
         100,
         "Calculation Resolution - Default 100",
         "How many points will be calculated per in game unit. Changing this should not be necessary!");
-        Resolution.SetRange(1, 500);
+        Resolution.SetRange(1, 200);
     }
 
     // Same as the callback in "CreateSettings". Called when the settings ui is closed.

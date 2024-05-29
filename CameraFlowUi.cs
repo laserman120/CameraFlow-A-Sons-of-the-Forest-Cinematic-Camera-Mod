@@ -296,7 +296,6 @@ public class CameraFlowUi
     {
         var size = 10;
         
-        
         var posContainer = SDiv.FlexHeight(1)
            .Background(Color.black, EBackground.None)
            .Size(-20, 40)
@@ -374,9 +373,6 @@ public class CameraFlowUi
                 CameraFlow.positions.Insert(CameraFlow.selectedPoint, newPosition);
                 CameraFlow.rotations.Insert(CameraFlow.selectedPoint, newRotation);
             }
-
-
-
             CameraFlow.CalculatePath(true);
         }
     }

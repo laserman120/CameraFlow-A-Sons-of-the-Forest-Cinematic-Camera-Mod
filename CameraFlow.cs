@@ -3,16 +3,11 @@ using SonsSdk.Attributes;
 using TheForest.Utils;
 using UnityEngine;
 using RedLoader;
-using System.Collections;
 using TheForest;
 using SUI;
 using static SUI.SUI;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Endnight.Utilities;
-using Sons.Gui;
-using Endnight.Physics;
-using System.ComponentModel;
 
 namespace CameraFlow;
 
@@ -35,25 +30,18 @@ public class CameraFlow : SonsMod
         var panel = GetPanel("SidePanel");
         panel.Active(false);
 
-
-
         // Add in-game settings ui for your mod.
         SettingsRegistry.CreateSettings(this, null, typeof(Config));
         speed = Config.Speed.Value;
         resolution = Config.Resolution.Value;
-        Config.MenuKey.Notify(KeyPressMethod);
+        Config.MenuKey.Notify(MenuToggle);
         Config.PosKey.Notify(setPosition);
         Config.DrawKey.Notify(drawToggle);
         Config.StartCamKey.Notify(StartMoving);
-
-
-        GameObject go = new GameObject("CameraMoverObject");
-        go.AddComponent<CameraMover>();
     }
 
     protected override void OnGameStart()
     {
-        
     }
 
     protected override void OnSonsSceneInitialized(ESonsScene sonsScene)
@@ -70,33 +58,36 @@ public class CameraFlow : SonsMod
             isMoving = false;
             clearCalculatedPaths();
             currentlyDrawing = false;
-
-            
         }
     }
 
     private static int currentTargetIndex = 0;
+    private static int speed = 1;  // Speed of the movement
+    private static int positionsAlreadyCalculated = 0;
+    private static int resolution = 100;
+    public static int selectedPoint = 0;
+
     private static bool isMoving = false;
-    public static int speed = 1;  // Speed of the movement
+    private static bool panelActive = false;
+    public static bool currentlyDrawing = false;
+
     public static List<Vector3> positions = new List<Vector3>();
     public static List<Quaternion> rotations = new List<Quaternion>();
     public static List<Vector3> calculatedPath = new List<Vector3>();
     public static List<Quaternion> calculatedRotations = new List<Quaternion>();
     public static List<Vector3> finalCalculatedPath = new List<Vector3>();
     public static List<Quaternion> finalCalculatedRotations = new List<Quaternion>();
-    public static List<float> segmentLengths = new List<float>();
-    public static int positionsAlreadyCalculated = 0;
-    public static int resolution = 100;
+    private static List<float> segmentLengths = new List<float>();
+
     private static List<GameObject> cubes = new List<GameObject>();
     private static List<SonsSdk.DebugTools.LineDrawer> lines = new List<SonsSdk.DebugTools.LineDrawer>();
     private static List<SonsSdk.DebugTools.LineDrawer> lineDrawers = new List<SonsSdk.DebugTools.LineDrawer>();
-    private static bool panelActive = false;
-    public static bool currentlyDrawing = false;
-    public static int selectedPoint = 0;
+    
     private static Vector3 startPos = Vector3.zero;
-    public static float tSegment = 0f;
-    public static float totalLength = 0f;
-    public static float easingMultiplier = 2f;
+
+    private static float tSegment = 0f;
+    private static float totalLength = 0f;
+
     public static string fileLocation = $"Mods/CameraFlow/";
 
     //B-Splines
@@ -192,18 +183,20 @@ public class CameraFlow : SonsMod
             tSegment = Mathf.Clamp01(accumulatedLength / segmentLengths[segmentIndex]);
 
             // Calculate the position at this point on the curve
-            Vector3 pointOnCurve = CalculateBSplinePoint(tSegment, positionsTemporary[segmentIndex], positionsTemporary[segmentIndex + 1], positionsTemporary[segmentIndex + 2], positionsTemporary[segmentIndex + 3]);
+            Vector3 pointOnCurve = CalculateBSplinePoint(tSegment, 
+                positionsTemporary[segmentIndex], positionsTemporary[segmentIndex + 1], 
+                positionsTemporary[segmentIndex + 2], 
+                positionsTemporary[segmentIndex + 3]);
             calculatedPath.Add(pointOnCurve);
 
             Quaternion rotOnCurve = CalculateBSplineRotation(tSegment,
-                                                 rotationsTemporary[segmentIndex],
-                                                 rotationsTemporary[segmentIndex + 1],
-                                                 rotationsTemporary[segmentIndex + 2],
-                                                 rotationsTemporary[segmentIndex + 3]);
+                rotationsTemporary[segmentIndex],
+                rotationsTemporary[segmentIndex + 1],
+                rotationsTemporary[segmentIndex + 2],
+                rotationsTemporary[segmentIndex + 3]);
             calculatedRotations.Add(rotOnCurve);
 
             accumulatedLength += spacing;
-
 
             // If we've moved beyond the current segment
             while (segmentIndex < positionsTemporary.Count - 3 && accumulatedLength > segmentLengths[segmentIndex])
@@ -336,7 +329,6 @@ public class CameraFlow : SonsMod
         }
     }
 
-    
     private static void clearCalculatedPaths()
     { 
         calculatedPath.Clear();
@@ -363,8 +355,6 @@ public class CameraFlow : SonsMod
             ToggleGodMode(false);
         }
     }
-
-
 
     private void MyUpdateMethod()
     {
@@ -624,8 +614,6 @@ public class CameraFlow : SonsMod
             playerRot = LocalPlayer.Transform.rotation;
         }
         
-        
-
         // Get the Euler angles (rotation around x, y, and z axes) of the player and camera
         Vector3 playerEulerAngles = playerRot.eulerAngles;
         Vector3 cameraEulerAngles = freeCam.transform.rotation.eulerAngles;
@@ -688,7 +676,7 @@ public class CameraFlow : SonsMod
         // Enable or disable the component
         freeCameraControllerComponent.enabled = enable;
     }
-    
+ 
     public class SerializableVector3
     {
         public float X { get; set; }
@@ -866,8 +854,6 @@ public class CameraFlow : SonsMod
         }
     }
 
-
-
     //Commands
     [DebugCommand("DebugCameraFlow")]
     private void DebugCameraFlow()
@@ -946,7 +932,7 @@ public class CameraFlow : SonsMod
     }
     //SUI Bullshittery
 
-    public void KeyPressMethod()
+    public void MenuToggle()
     {
         var panel = GetPanel("SidePanel");
         panelActive = !panelActive;
@@ -961,16 +947,5 @@ public class CameraFlow : SonsMod
             SonsTools.ShowMessage("Closing Camera Flow Menu");
             panel.Active(false);
         }
-    }
-}
-
-public class CameraMover : MonoBehaviour
-{
-    public static CameraMover Instance; // Singleton instance
-    public static CameraFlow CameraFlow;
-
-    private void Awake()
-    {
-        Instance = this; // Assign the singleton instance in Awake
     }
 }

@@ -22,8 +22,6 @@ Fixed camera movement loop not stopping when exiting to the main menu while the 
 Fixed issues with ui not enabling again if the player exits to the main menu while the camera is moving.
 
 1.0.5:
-Rotation easing can now be enabled in the CameraFlow Menu for specific points.
-You can use the multiplier option to set the strength of the easing.
-Saved paths will now also store the easing as well as the multiplier, old saved paths need to be overwritten to keep any easings added.
+Reworked rotation completely, it now creates much smoother rotation. This can cause visual issues on points that are very close together
 Switching points while the preview is disabled will no longer enable it.
 
