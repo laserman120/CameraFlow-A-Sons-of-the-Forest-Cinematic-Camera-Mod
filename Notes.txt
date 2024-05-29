@@ -1,0 +1,29 @@
+for 1.0.1:
+
+Fixed settings points while in freecamera.
+Fixed text alignment issues in the Flow Menu
+Disabled mouse and keyboard inputs while the camera is moving.
+Fixed an issue with the cam bugging out when the camera is started while sitting on a bench or chair.
+
+1.0.3:
+Rewrote path calculation to equally space all the points, the speed of the movement should now be a lot smoother no matter the distance of the points.
+Note: If you have used the mod before you will have to adjust your settings as the Resolution value was changed in how it works. I recommend setting it to the displayed default value.
+Reduced the size of the point to point renderer, fixed issues with displaying it.
+Reduced unnecessary calculations.
+Improved the CameraFlow Menu.
+Added a button to delete saved paths.
+
+1.0.4:
+Changed path preview to no longer be culled at longer distances.
+The mod no longer uses debug commands, so your console history should now no longer be disturbed.
+While the camera is moving it will now activate god mode to prevent possible camera desyncs.
+Added an option to the Config to keep GodMode enabled when the path is finished. If disabled godmode will be turned off.
+Fixed camera movement loop not stopping when exiting to the main menu while the camera is moving.
+Fixed issues with ui not enabling again if the player exits to the main menu while the camera is moving.
+
+1.0.5:
+Rotation easing can now be enabled in the CameraFlow Menu for specific points.
+You can use the multiplier option to set the strength of the easing.
+Saved paths will now also store the easing as well as the multiplier, old saved paths need to be overwritten to keep any easings added.
+Switching points while the preview is disabled will no longer enable it.
+

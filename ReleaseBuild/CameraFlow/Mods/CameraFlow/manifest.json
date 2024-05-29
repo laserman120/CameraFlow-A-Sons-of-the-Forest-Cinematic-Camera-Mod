@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ToniMacaroni/RedLoader/main/MetadataSchema.json",
+  "id": "CameraFlow",
+  "author": "GLaD0S",
+  "version": "1.0.5",
+  "description": "CameraFlow - A cinematic camera mod for Sons of the Forest. Allows you to create a Path which the camera will smoothly travel across.",
+  "gameVersion": "1.0.0",
+  "type": "Mod",
+  "url": "..."
+}
