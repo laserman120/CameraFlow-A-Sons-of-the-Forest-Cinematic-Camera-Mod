@@ -230,6 +230,7 @@ public class CameraFlowUi
 
         foreach (string file in files)
         {
+            if(Path.GetFileNameWithoutExtension(file) == "manifest") continue;
             createLoadPathContainer(settingsScroll, Path.GetFileNameWithoutExtension(file), file);
         }
     }
