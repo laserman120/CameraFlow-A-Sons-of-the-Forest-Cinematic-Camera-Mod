@@ -4,8 +4,11 @@ using JetAnnotations;
 using RedLoader;
 using SonsSdk;
 using SUI;
+using System.Numerics;
 using UnityEngine;
 using static SUI.SUI;
+using Vector3 = UnityEngine.Vector3;
+using Quaternion = UnityEngine.Quaternion;
 
 public class CameraFlowUi
 {
@@ -212,7 +215,12 @@ public class CameraFlowUi
             .OnClick(() =>
             {
                 SonsTools.ShowMessage("Saving Path...");
-                CameraFlow.SaveCameraFlowData(fileName);
+                var path = CameraFlow.SaveCameraFlowData(fileName);
+                if(path != null)
+                {
+                    createLoadPathContainer(settingsScroll, fileName, path);
+                }
+                
             });
         settingsScroll.Add(savePathContainer);
 
@@ -286,6 +294,7 @@ public class CameraFlowUi
             {
                 SonsTools.ShowMessage("Deleting Path...");
                 CameraFlow.DeleteCameraFlowData(path);
+                loadPathContainer.Remove();
             });
         loadPathContainer.Add(deleteButtonContainer);
     }

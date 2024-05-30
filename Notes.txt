@@ -22,6 +22,10 @@ Fixed camera movement loop not stopping when exiting to the main menu while the 
 Fixed issues with ui not enabling again if the player exits to the main menu while the camera is moving.
 
 1.0.5:
-Reworked rotation completely, it now creates much smoother rotation. This can cause visual issues on points that are very close together
+Reworked rotation completely, it now creates much smoother rotation. This can cause visual issues on points that are very close together, but should lead to highly improved results in most cases.
+Loading and saving Paths no longer requires a restart to be shown in the Menu.
 Switching points while the preview is disabled will no longer enable it.
+When starting the camera the CameraFlow Menu will now close and cannot be opened anymore to prevent changes to the path during travel.
+Prevented placement of points while the camera is moving.
+
 

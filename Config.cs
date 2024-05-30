@@ -15,6 +15,7 @@ public static class Config
     public static ConfigEntry<float> Opacity { get; private set; }
     public static ConfigEntry<bool> Godmode { get; private set; }
     public static ConfigEntry<int> Resolution { get; private set; }
+    public static ConfigEntry<bool> ForceUi { get; private set; }
 
     public static void Init()
     {
@@ -70,6 +71,12 @@ public static class Config
         "Calculation Resolution - Default 100",
         "How many points will be calculated per in game unit. Changing this should not be necessary!");
         Resolution.SetRange(1, 200);
+
+        ForceUi = Category.CreateEntry(
+            "force_ui",
+            false,
+            "Force Enable UI",
+            "Forces UI to be enabled on startup, necessary when the game is closed while the camera is moving");
     }
 
     // Same as the callback in "CreateSettings". Called when the settings ui is closed.

@@ -38,6 +38,11 @@ public class CameraFlow : SonsMod
         Config.PosKey.Notify(setPosition);
         Config.DrawKey.Notify(drawToggle);
         Config.StartCamKey.Notify(StartMoving);
+
+        if(Config.ForceUi.Value)
+        {
+            toggleUI(true);
+        }
     }
 
     protected override void OnGameStart()
@@ -307,8 +312,9 @@ public class CameraFlow : SonsMod
             SonsTools.ShowMessage("Not enough points to calculate path");
             return;
         }
-
-        else {
+        else 
+        {
+            if (panelActive) MenuToggle(); 
             CalculatePath(false);
             SetCameraMovementSittingFix(false);
             LocalPlayer.RaceSystem.SwitchToThirdPerson();
@@ -598,6 +604,9 @@ public class CameraFlow : SonsMod
 
     public static void setPosition()
     {
+        //check if camera is moving
+        if (isMoving) return;
+
         GameObject freeCam = GameObject.Find("MainCameraFP");
         Quaternion playerRot = Quaternion.identity;
         //add the current position of the player to positions list
@@ -707,14 +716,14 @@ public class CameraFlow : SonsMod
         }
     }
 
-    public static void SaveCameraFlowData(string fileName)
+    public static string SaveCameraFlowData(string fileName)
     {
         try
         {
             if (positions.Count == 0)
             {
                 SonsTools.ShowMessage("No path found!");
-                return;
+                return null;
             }
 
             // Convert positions and rotations to serializable types
@@ -734,12 +743,13 @@ public class CameraFlow : SonsMod
             string path = fileLocation + fileName + ".json";
             File.WriteAllText(path, json);
             SonsTools.ShowMessage(fileName + " Saved successfully!");
-            SonsTools.ShowMessage("File will appear in the list after restarting");
+            return path;
         }
         catch (Exception ex)
         {
             // Log the exception
             RLog.Error("An error occurred while saving camera flow data: " + ex.ToString());
+            return null;
         }
     }
     
@@ -828,7 +838,7 @@ public class CameraFlow : SonsMod
         }
         catch (Exception ex)
         {
-            RLog.Error("File not found or no longer exists! " + ex.ToString());
+            RLog.Error("An error occured while loading camera flow data: " + ex.ToString());
             SonsTools.ShowMessage("File not found or no longer exists!");
         }
     }
@@ -841,7 +851,7 @@ public class CameraFlow : SonsMod
             if (File.Exists(fileName))
             {
                 File.Delete(fileName);
-                SonsTools.ShowMessage(fileName + " deleted successfully! Will dissapear after a restart");
+                SonsTools.ShowMessage(fileName + " deleted successfully!");
             }
             else
             {
@@ -864,20 +874,26 @@ public class CameraFlow : SonsMod
         RLog.Msg("Rotations: " + rotations.Count);
         RLog.Msg("Calculated Path: " + calculatedPath.Count);
         RLog.Msg("Calculated Rotations: " + calculatedRotations.Count);
+        RLog.Msg("Final Calculated Path: " + finalCalculatedPath.Count);
+        RLog.Msg("Final Calculated Rotations: " + finalCalculatedRotations.Count);
         if(calculatedPath.Count != calculatedRotations.Count)
         {
             RLog.Error("DESYNC!!! Calculated Path and Calculated Rotations are not equal");
+        }
+        if (finalCalculatedPath.Count != finalCalculatedRotations.Count)
+        {
+            RLog.Error("DESYNC!!! Final Calculated Path and Final Calculated Rotations are not equal");
         }
         RLog.Msg("Segment Lengths: " + segmentLengths.Count);
         RLog.Msg("Total Length: " + totalLength);
         var ppu = calculatedPath.Count / totalLength;
         RLog.Msg("Positiions per unit: " + ppu);
         (float min, float max, float average) = CalculateDistances();
-        RLog.Msg($"Min distance: {min}, Max distance: {max}, Average distance: {average}");
+        RLog.Msg($"Distances Calculated: Min: {min}, Max: {max}, Average: {average}");
 
 
         (float minF, float maxF, float averageF) = CalculateDistancesFinal();
-        RLog.Msg($"Min distance final: {minF}, Max distance final: {maxF}, Average distance final: {averageF}");
+        RLog.Msg($"Final Distances: Min: {minF}, Max: {maxF}, Average: {averageF}");
         RLog.Msg("Final Points Amount: " + finalCalculatedPath.Count);
 
         RLog.Error("End Debugging Camera Flow");
@@ -938,6 +954,7 @@ public class CameraFlow : SonsMod
         panelActive = !panelActive;
         if (panelActive)
         {
+            if (isMoving) return;
             SonsTools.ShowMessage("Opening Camera Flow Menu");
             panel.Opacity(Config.Opacity.Value);
             panel.Active(true);
