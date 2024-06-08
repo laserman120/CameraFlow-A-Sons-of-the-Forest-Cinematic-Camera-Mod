@@ -16,8 +16,12 @@ public static class Config
     public static ConfigEntry<bool> Godmode { get; private set; }
     public static ConfigEntry<int> Resolution { get; private set; }
     public static ConfigEntry<bool> ForceUi { get; private set; }
+    public static ConfigEntry<bool> removeRotation { get; private set; }
+    public static ConfigEntry<bool> useOldPathing { get; private set; }
 
-    public static void Init()
+
+
+public static void Init()
     {
         Category = ConfigSystem.CreateFileCategory("Base Configuration", "Base Configuration", "CameraFlow.cfg");
         Speed = Category.CreateEntry(
@@ -70,13 +74,25 @@ public static class Config
         100,
         "Calculation Resolution - Default 100",
         "How many points will be calculated per in game unit. Changing this should not be necessary!");
-        Resolution.SetRange(1, 200);
+        Resolution.SetRange(1, 500);
 
         ForceUi = Category.CreateEntry(
             "force_ui",
             false,
             "Force Enable UI",
             "Forces UI to be enabled on startup, necessary when the game is closed while the camera is moving");
+
+        removeRotation = Category.CreateEntry(
+            "remove_rotation",
+            false,
+            "Remove Rotation",
+            "No longer rotates the camera during the camera movement");
+
+        useOldPathing = Category.CreateEntry(
+            "use_old_pathing",
+            false,
+            "Use old Pathing",
+            "Use the old pathing system");
     }
 
     // Same as the callback in "CreateSettings". Called when the settings ui is closed.
