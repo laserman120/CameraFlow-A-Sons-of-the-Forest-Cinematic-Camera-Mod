@@ -92,7 +92,7 @@ public class CameraFlow : SonsMod
     private static List<float> segmentTValues = new List<float>();
     private static List<float> accumulatedLenghts = new List<float>();
 
-    private static int lastFoundSegment = 0;
+    private static int lastFoundT = 0;
     private static float movedDistance = 0f;
     private static Vector3 lastPosition = Vector3.zero;
 
@@ -174,6 +174,7 @@ public class CameraFlow : SonsMod
         rotationsTemporary.Add(rotations[rotations.Count - 1]);
 
         float totalAccumulatedlength = 0;
+        
         // Calculate the lengths of all segments and the total length of the path
         for (int i = 0; i < positionsTemporary.Count - 3; i++)
         {
@@ -189,6 +190,9 @@ public class CameraFlow : SonsMod
         float accumulatedLength = 0;
         int segmentIndex = 0;
         int iteration = 0;
+        float targetDistance = speed / 100f;
+        float currentDistance = 0;
+
         while (segmentIndex < positionsTemporary.Count - 3)
         {
             tSegment = Mathf.Clamp01(accumulatedLength / segmentLengths[segmentIndex]);
@@ -229,45 +233,25 @@ public class CameraFlow : SonsMod
             {
                 float distanceMoved = Vector3.Distance(calculatedPath[iteration], calculatedPath[iteration - 1]);
                 totalAccumulatedlength += distanceMoved;
+                currentDistance += distanceMoved;
+            } else
+            {
+                finalCalculatedPath.Add(pointOnCurve);
+                finalCalculatedRotations.Add(rotOnCurve);
+            }
+
+            if(currentDistance >= targetDistance)
+            {
+                finalCalculatedPath.Add(pointOnCurve);
+                finalCalculatedRotations.Add(rotOnCurve);
+                currentDistance = 0;
             }
 
             iteration++;
 
         }
-
-        // Now we have a lookup table with a fine resolution
-        // Let's step through it to find points that are as close to equal distance as possible
-        if (Config.useOldPathing.Value) { 
-            float targetDistance = speed / 100f;
-            float currentDistance = 0;
-            Vector3 previousPoint = calculatedPath[0];
-
-            finalCalculatedPath.Add(previousPoint);
-            finalCalculatedRotations.Add(calculatedRotations[0]);
-
-            for (int i = 1; i < calculatedPath.Count; i++)
-            {
-                // If this is the last point and it's the same as the first point, skip it
-                if (i == calculatedPath.Count - 1 && calculatedPath[i] == calculatedPath[0])
-                {
-                    continue;
-                }
-
-                currentDistance += Vector3.Distance(previousPoint, calculatedPath[i]);
-
-                if (currentDistance >= targetDistance)
-                {
-                    finalCalculatedPath.Add(calculatedPath[i]);
-                    finalCalculatedRotations.Add(calculatedRotations[i]);
-                    previousPoint = calculatedPath[i];
-                    currentDistance = 0;
-                } else if (currentDistance < targetDistance)
-                {
-                    previousPoint = calculatedPath[i];
-                }
-            }
         startPos = finalCalculatedPath[0];
-        }
+        
         positionsAlreadyCalculated = positions.Count;
         drawRefresh();
     }
@@ -353,7 +337,7 @@ public class CameraFlow : SonsMod
             SetCameraMovement(false);
             currentTargetIndex = 0;
 
-            lastFoundSegment = 0;
+            lastFoundT = 0;
             movedDistance = 0f;
 
             // Set the camera's position to the first position in the list
@@ -475,7 +459,6 @@ public class CameraFlow : SonsMod
             return;
         }
 
-
         List<Vector3> positionsTemporary = new List<Vector3>();
         List<Quaternion> rotationsTemporary = new List<Quaternion>();
 
@@ -509,9 +492,6 @@ public class CameraFlow : SonsMod
 
         rotationsTemporary.Add(rotations[rotations.Count - 1]);
 
-
-
-
         GameObject freeCam = GameObject.Find("MainCameraFP");
 
         // Calculate target distance for this frame
@@ -521,8 +501,8 @@ public class CameraFlow : SonsMod
         float desiredDistance = distanceIncrement * (Time.deltaTime / fixedTimeStep);
 
 
-        // Find the current segment (binary search for efficiency)
-        int targetIndex = FindIndexForDistance(movedDistance, segmentStarts);
+        // Find the current segment (always start from the first entry of the list)
+        int targetIndex = FindIndexForDistance(movedDistance, segmentStarts, 0);
 
         // Ensure the index is valid (handle overshooting)
         if (targetIndex >= segmentStarts.Count)
@@ -530,14 +510,16 @@ public class CameraFlow : SonsMod
             targetIndex = segmentStarts.Count - 1;
         }
 
-        // Calculate T value within the current segment
-        int tIndex = FindIndexForDistance(movedDistance, accumulatedLenghts);
+        // Calculate T value within the current segment, start with the search at the last found index to speed up the search
+        int tIndex = FindIndexForDistance(movedDistance, accumulatedLenghts, lastFoundT);
         float T = segmentTValues[tIndex];
+        lastFoundT = tIndex;
 
         if (movedDistance >= totalLength)
         {
             // Stop movement
             StopMoving();
+            SonsTools.ShowMessage("Camera flow ended");
             return; // Exit the function early
         }
 
@@ -558,14 +540,12 @@ public class CameraFlow : SonsMod
         
         float distanceToLast = Vector3.Distance(lastPosition, targetPoint);
 
-
-
         // Set the camera's rotation
         freeCam.transform.rotation = targetRotation;
 
-        if (Mathf.Abs(distanceToLast - desiredDistance) > 0.02 && isMoving)
+        if (Mathf.Abs(distanceToLast - desiredDistance) > 0.005 && isMoving)
         {
-            RLog.Error("Step too big: " + desiredDistance + " vs " + movedDistance);
+            RLog.Error("Step too big: " + desiredDistance + " vs " + distanceToLast);
             RLog.Msg("Moved to position " + distanceToLast + " of " + totalLength + " Found T " + T + " at " + accumulatedLenghts[tIndex] + " current Segment: " + targetIndex + " at " + segmentStarts[targetIndex]);
         }
 
@@ -573,10 +553,10 @@ public class CameraFlow : SonsMod
     }
 
     // Helper method for search
-    private int FindIndexForDistance(float targetDistance, List<float> accumulatedDistances)
+    private int FindIndexForDistance(float targetDistance, List<float> accumulatedDistances, int startFrom)
     {
         // Iterate from 0 upwards until we find the target distance or exceed it
-        for (int i = 0; i < accumulatedDistances.Count; i++)
+        for (int i = startFrom; i < accumulatedDistances.Count; i++)
         {
             if (accumulatedDistances[i] >= targetDistance)
             {
