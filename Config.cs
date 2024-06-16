@@ -12,12 +12,11 @@ public static class Config
     public static KeybindConfigEntry PosKey { get; private set; }
     public static KeybindConfigEntry DrawKey { get; private set; }
     public static ConfigEntry<int> Speed { get; private set; }
+    public static ConfigEntry<int> Delay { get; private set; }
     public static ConfigEntry<float> Opacity { get; private set; }
     public static ConfigEntry<bool> Godmode { get; private set; }
     public static ConfigEntry<int> Resolution { get; private set; }
     public static ConfigEntry<bool> ForceUi { get; private set; }
-    public static ConfigEntry<bool> removeRotation { get; private set; }
-    public static ConfigEntry<bool> useOldPathing { get; private set; }
 
 
 
@@ -54,6 +53,12 @@ public static void Init()
                "Toggle the preview", // //Set name displayed in mod menu settings
                "Toggles the Path and Point preview"); //Set description shown on hovering mouse over displayed name
 
+        Delay = Category.CreateEntry(
+            "delay",
+            0,
+            "Delay - Default 0",
+            "How long to wait before starting the camera movement. In frames.");
+
         Opacity = Category.CreateEntry(
             "opacity",
             0.8f,
@@ -74,25 +79,13 @@ public static void Init()
         100,
         "Calculation Resolution - Default 100",
         "How many points will be calculated per in game unit. Changing this should not be necessary!");
-        Resolution.SetRange(1, 500);
+        Resolution.SetRange(1, 1000);
 
         ForceUi = Category.CreateEntry(
             "force_ui",
             false,
             "Force Enable UI",
             "Forces UI to be enabled on startup, necessary when the game is closed while the camera is moving");
-
-        removeRotation = Category.CreateEntry(
-            "remove_rotation",
-            false,
-            "Remove Rotation",
-            "No longer rotates the camera during the camera movement");
-
-        useOldPathing = Category.CreateEntry(
-            "use_old_pathing",
-            false,
-            "Use old Pathing",
-            "Use the old pathing system");
     }
 
     // Same as the callback in "CreateSettings". Called when the settings ui is closed.

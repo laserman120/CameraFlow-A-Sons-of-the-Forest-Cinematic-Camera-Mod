@@ -69,7 +69,6 @@ public class CameraFlow : SonsMod
         }
     }
 
-    private static int currentTargetIndex = 0;
     private static int speed = 1;  // Speed of the movement
     private static int positionsAlreadyCalculated = 0;
     private static int resolution = 100;
@@ -78,27 +77,33 @@ public class CameraFlow : SonsMod
     private static bool isMoving = false;
     private static bool panelActive = false;
     public static bool currentlyDrawing = false;
-    private static bool removeRotation = false;
 
-    public static List<Vector3> positions = new List<Vector3>();
-    public static List<Quaternion> rotations = new List<Quaternion>();
-    public static List<Vector3> calculatedPath = new List<Vector3>();
-    public static List<Quaternion> calculatedRotations = new List<Quaternion>();
-    public static List<Vector3> finalCalculatedPath = new List<Vector3>();
-    public static List<Quaternion> finalCalculatedRotations = new List<Quaternion>();
-    private static List<float> segmentLengths = new List<float>();
-
-    private static List<float> segmentStarts = new List<float>();
-    private static List<float> segmentTValues = new List<float>();
-    private static List<float> accumulatedLenghts = new List<float>();
+    public static List<Vector3> positions = new();
+    public static List<Quaternion> rotations = new();
+    private static List<float> segmentLengths = new();
+    private static List<float> segmentStarts = new();
 
     private static int lastFoundT = 0;
     private static float movedDistance = 0f;
+    private static float totalMovedDistance = 0f;
     private static Vector3 lastPosition = Vector3.zero;
+    private static int lastFoundSegment = 0;
+    private static int delay = 0;
 
-    private static List<GameObject> cubes = new List<GameObject>();
-    private static List<SonsSdk.DebugTools.LineDrawer> lines = new List<SonsSdk.DebugTools.LineDrawer>();
-    private static List<SonsSdk.DebugTools.LineDrawer> lineDrawers = new List<SonsSdk.DebugTools.LineDrawer>();
+    private static List<List<Vector3>> segmentsCalculatedUsedPositions = new();
+    private static List<List<Quaternion>> segmentsCalculatedUsedRotations = new();
+    private static List<List<Vector3>> segmentsCalculatedPath = new();
+    private static List<List<Quaternion>> segmentsCalculatedRotations = new();
+    private static List<List<float>> segmentTValuesCalculated = new();
+    private static List<List<float>> accumulatedLenghtsCalculated = new();
+    private static List<List<Vector3>> finalPathCalculated = new();
+    private static List<List<Quaternion>> finalRotationsCalculated = new();
+    private static List<float> CalculatedSegmentLenghts = new();
+
+    private static List<GameObject> cubes = new();
+    private static List<SonsSdk.DebugTools.LineDrawer> lines = new();
+    private static List<SonsSdk.DebugTools.LineDrawer> lineDrawers = new();
+    
     
     private static Vector3 startPos = Vector3.zero;
 
@@ -110,27 +115,20 @@ public class CameraFlow : SonsMod
     //B-Splines
     public static void CalculatePath(bool force)
     {
-        if (force)
-        {
-            positionsAlreadyCalculated = 0;
-        }
-
-        if(positions.Count == positionsAlreadyCalculated)
-        {
-            return;
-        }
-
-        List<Vector3> positionsTemporary = new List<Vector3>();
-        List<Quaternion> rotationsTemporary = new List<Quaternion>();
+        List<Vector3> positionsTemporary = new();
+        List<Quaternion> rotationsTemporary = new();
+        bool forceFullRecalculation = false;
 
         if (resolution != Config.Resolution.Value)
         {
             resolution = Config.Resolution.Value;
+            forceFullRecalculation = true;
         }
 
         if (speed != Config.Speed.Value)
         {
             speed = Config.Speed.Value;
+            forceFullRecalculation = true;
         }
 
         //destroy path before starting
@@ -141,8 +139,12 @@ public class CameraFlow : SonsMod
             return;
         }
 
+        //Create temporary lists to compare the new positions with the old ones 
+        List<float> TempSegmentStarts = segmentStarts.ToList();
+
         clearCalculatedPaths();
 
+        
         // Calculate the direction of the first segment
         Vector3 firstSegmentDirection = (positions[1] - positions[0]).normalized;
 
@@ -155,25 +157,24 @@ public class CameraFlow : SonsMod
         // Calculate the position of the imaginary point
         Vector3 lastImaginaryPoint = positions[positions.Count - 1] + lastSegmentDirection * 10;  // Adjust the multiplier as needed
 
-
+        
         rotationsTemporary.Add(rotations[0]);
 
         //add imaginaryPoint to positionsTemporary
         positionsTemporary.Add(imaginaryPoint);
         
+
         //add all other positions to positionsTemporary
         for (int i = 0; i < positions.Count; i++)
         {
             positionsTemporary.Add(positions[i]);
             rotationsTemporary.Add(rotations[i]);
         }
-
+        
         //add lastImaginaryPoint to positionsTemporary
         positionsTemporary.Add(lastImaginaryPoint);
 
         rotationsTemporary.Add(rotations[rotations.Count - 1]);
-
-        float totalAccumulatedlength = 0;
         
         // Calculate the lengths of all segments and the total length of the path
         for (int i = 0; i < positionsTemporary.Count - 3; i++)
@@ -192,68 +193,202 @@ public class CameraFlow : SonsMod
         int iteration = 0;
         float targetDistance = speed / 100f;
         float currentDistance = 0;
+        bool checkedSegmentforChanges = false;
+        float realMovedLength = 0;
 
-        while (segmentIndex < positionsTemporary.Count - 3)
+        EnsureListCapacity(positionsTemporary.Count - 3);
+        try {
+            while (segmentIndex < positionsTemporary.Count - 3)
+            {
+
+                if (!checkedSegmentforChanges)
+                {
+                    // Check if this segment's control points have changed
+                    List<Vector3> usedPositions = new() {
+                        positionsTemporary[segmentIndex],
+                        positionsTemporary[segmentIndex + 1],
+                        positionsTemporary[segmentIndex + 2],
+                        positionsTemporary[segmentIndex + 3]
+                    };
+
+                    List<Quaternion> usedRotations = new()
+                    {
+                        rotationsTemporary[segmentIndex],
+                        rotationsTemporary[segmentIndex + 1],
+                        rotationsTemporary[segmentIndex + 2],
+                        rotationsTemporary[segmentIndex + 3]
+                    };
+
+                    bool segmentChanged = false;
+                    
+                    if (segmentsCalculatedUsedPositions.Count > segmentIndex)  // Ensure the index is valid
+                    {
+                        
+                        // Compare each control point in usedPositions with the corresponding cached position
+                        for (int i = 0; i < 4; i++)
+                        {
+                            if (segmentsCalculatedUsedPositions[segmentIndex].Count == 0)
+                            {
+                                segmentChanged = true;
+                                break;
+                            }
+
+                            if (!usedPositions[i].Equals(segmentsCalculatedUsedPositions[segmentIndex][i]) || !usedRotations[i].Equals(segmentsCalculatedUsedRotations[segmentIndex][i]))
+                            {
+                                segmentChanged = true;
+                                break; // No need to continue checking if one point is different
+                            }
+                        }
+                        
+                    }
+                    else
+                    {
+                        // If the segment is new (not in the cache), it's considered changed
+                        segmentChanged = true;
+                    }
+
+                    if (forceFullRecalculation)
+                    {
+                        segmentChanged = true;
+                    }
+
+                    if (segmentChanged) {
+                        RLog.Msg("Segment " + segmentIndex + " changed");
+                        checkedSegmentforChanges = true;
+
+                        // Reset stored values for this segment since it has changed.
+                        segmentsCalculatedPath[segmentIndex].Clear();
+                        segmentsCalculatedRotations[segmentIndex].Clear();
+                        accumulatedLenghtsCalculated[segmentIndex].Clear();
+                        segmentTValuesCalculated[segmentIndex].Clear();
+                        finalPathCalculated[segmentIndex].Clear();
+                        finalRotationsCalculated[segmentIndex].Clear();
+
+                    } else {
+                        
+                        //Not changed, use cached values
+                        checkedSegmentforChanges = false;
+                        segmentIndex++;
+                        continue;
+                    }
+                }
+
+                tSegment = Mathf.Clamp01(accumulatedLength / segmentLengths[segmentIndex]);
+
+                // Calculate the position at this point on the curve
+                Vector3 pointOnCurve = CalculateBSplinePoint(tSegment, 
+                    positionsTemporary[segmentIndex], positionsTemporary[segmentIndex + 1], 
+                    positionsTemporary[segmentIndex + 2], 
+                    positionsTemporary[segmentIndex + 3]);
+            
+
+                Quaternion rotOnCurve = CalculateBSplineRotation(tSegment,
+                    rotationsTemporary[segmentIndex],
+                    rotationsTemporary[segmentIndex + 1],
+                    rotationsTemporary[segmentIndex + 2],
+                    rotationsTemporary[segmentIndex + 3]);
+
+                segmentsCalculatedPath[segmentIndex].Add(pointOnCurve);
+                segmentsCalculatedRotations[segmentIndex].Add(rotOnCurve);
+                //add the lenght at the current position
+
+                //if there are already two points in segmentsCalculatedPath we can calculate the distance between them
+                float distanceMoved = 0f;
+                if (segmentsCalculatedPath[segmentIndex].Count > 1)
+                {
+                    distanceMoved = Vector3.Distance(segmentsCalculatedPath[segmentIndex][segmentsCalculatedPath[segmentIndex].Count - 1], segmentsCalculatedPath[segmentIndex][segmentsCalculatedPath[segmentIndex].Count - 2]);
+                    realMovedLength += distanceMoved;
+                }
+
+                //This is how far into the segment we are, so where this T value is found.
+                accumulatedLenghtsCalculated[segmentIndex].Add(realMovedLength);
+                //add the t value of the current position
+                segmentTValuesCalculated[segmentIndex].Add(tSegment);
+
+                accumulatedLength += spacing;
+
+                // If we've moved beyond the current segment
+                while (segmentIndex < positionsTemporary.Count - 3 && accumulatedLength > segmentLengths[segmentIndex])
+                {
+                    //add the current length of this segment to the segment List to later on find when a segment is being passed
+                    CalculatedSegmentLenghts[segmentIndex] = accumulatedLength;
+                    segmentStarts[segmentIndex] = realMovedLength;
+                    // Subtract the length of the current segment and move on to the next one
+                    accumulatedLength -= segmentLengths[segmentIndex];
+
+                    List<Vector3> usedPositions = new() 
+                    {
+                        positionsTemporary[segmentIndex],
+                        positionsTemporary[segmentIndex + 1],
+                        positionsTemporary[segmentIndex + 2],
+                        positionsTemporary[segmentIndex + 3]
+                    };
+
+                    List<Quaternion> usedRotations = new()
+                    {
+                        rotationsTemporary[segmentIndex],
+                        rotationsTemporary[segmentIndex + 1],
+                        rotationsTemporary[segmentIndex + 2],
+                        rotationsTemporary[segmentIndex + 3]
+                    };
+
+                    segmentsCalculatedUsedPositions[segmentIndex] = usedPositions;
+                    segmentsCalculatedUsedRotations[segmentIndex] = usedRotations;
+                    realMovedLength = 0;
+
+                    checkedSegmentforChanges = false;
+                    segmentIndex++;
+                    iteration = 0;
+                }
+
+                //Find the distance moved on this iteration and add it to the totalAccumulatedLength
+                if (iteration != 0)
+                {
+                    currentDistance += distanceMoved;
+                }
+                else
+                {
+                    finalPathCalculated[segmentIndex].Add(pointOnCurve);
+                    finalRotationsCalculated[segmentIndex].Add(rotOnCurve);
+                }
+
+                if (currentDistance >= targetDistance)
+                {
+                    finalPathCalculated[segmentIndex].Add(pointOnCurve);
+                    finalRotationsCalculated[segmentIndex].Add(rotOnCurve);
+                    currentDistance = 0;
+                }
+
+                iteration++;
+            }
+
+
+
+
+        } catch (Exception ex)
         {
-            tSegment = Mathf.Clamp01(accumulatedLength / segmentLengths[segmentIndex]);
-
-            // Calculate the position at this point on the curve
-            Vector3 pointOnCurve = CalculateBSplinePoint(tSegment, 
-                positionsTemporary[segmentIndex], positionsTemporary[segmentIndex + 1], 
-                positionsTemporary[segmentIndex + 2], 
-                positionsTemporary[segmentIndex + 3]);
-            calculatedPath.Add(pointOnCurve);
-
-            Quaternion rotOnCurve = CalculateBSplineRotation(tSegment,
-                rotationsTemporary[segmentIndex],
-                rotationsTemporary[segmentIndex + 1],
-                rotationsTemporary[segmentIndex + 2],
-                rotationsTemporary[segmentIndex + 3]);
-            calculatedRotations.Add(rotOnCurve);
-
-            //add the total lenght at the current position
-            accumulatedLenghts.Add(totalAccumulatedlength);
-            //add the t value of the current position
-            segmentTValues.Add(tSegment);
-
-            accumulatedLength += spacing;
-
-            // If we've moved beyond the current segment
-            while (segmentIndex < positionsTemporary.Count - 3 && accumulatedLength > segmentLengths[segmentIndex])
-            {
-                //add the current length of this segment to the segment List to later on find when a segment is being passed
-                segmentStarts.Add(totalAccumulatedlength);
-                // Subtract the length of the current segment and move on to the next one
-                accumulatedLength -= segmentLengths[segmentIndex];
-                segmentIndex++;
-            }
-
-            //Find the distance moved on this iteration and add it to the totalAccumulatedLength
-            if (iteration != 0)
-            {
-                float distanceMoved = Vector3.Distance(calculatedPath[iteration], calculatedPath[iteration - 1]);
-                totalAccumulatedlength += distanceMoved;
-                currentDistance += distanceMoved;
-            } else
-            {
-                finalCalculatedPath.Add(pointOnCurve);
-                finalCalculatedRotations.Add(rotOnCurve);
-            }
-
-            if(currentDistance >= targetDistance)
-            {
-                finalCalculatedPath.Add(pointOnCurve);
-                finalCalculatedRotations.Add(rotOnCurve);
-                currentDistance = 0;
-            }
-
-            iteration++;
-
+            RLog.Error("An error occurred while calculating the path: " + ex.ToString());
         }
-        startPos = finalCalculatedPath[0];
         
         positionsAlreadyCalculated = positions.Count;
         drawRefresh();
+    }
+
+    public static void EnsureListCapacity(int segmentIndex)
+    {
+        while (segmentsCalculatedUsedPositions.Count <= segmentIndex)
+        {
+            segmentsCalculatedUsedPositions.Add(new List<Vector3>());
+            segmentsCalculatedUsedRotations.Add(new List<Quaternion>());
+            segmentsCalculatedPath.Add(new List<Vector3>());
+            segmentsCalculatedRotations.Add(new List<Quaternion>());
+            accumulatedLenghtsCalculated.Add(new List<float>());
+            segmentTValuesCalculated.Add(new List<float>());
+            finalPathCalculated.Add(new List<Vector3>());
+            finalRotationsCalculated.Add(new List<Quaternion>());
+            CalculatedSegmentLenghts.Add(0);
+            segmentStarts.Add(0);
+        }
     }
 
     public static Vector3 CalculateBSplinePoint(float t, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3)
@@ -309,11 +444,6 @@ public class CameraFlow : SonsMod
             speed = Config.Speed.Value;
         }
 
-        if(removeRotation != Config.removeRotation.Value)
-        {
-            removeRotation = Config.removeRotation.Value;
-        }
-
         if(isMoving)
         {
             StopMoving();
@@ -335,17 +465,19 @@ public class CameraFlow : SonsMod
             toggleUI(false);
             ToggleGodMode(true);
             SetCameraMovement(false);
-            currentTargetIndex = 0;
 
             lastFoundT = 0;
             movedDistance = 0f;
+            totalMovedDistance = 0f;
+            lastFoundSegment = 0;
 
             // Set the camera's position to the first position in the list
             GameObject freeCam = GameObject.Find("MainCameraFP");
             if (positions.Count > 0)
             {
-                freeCam.transform.position = startPos;
+                freeCam.transform.position = positions[0];
                 freeCam.transform.rotation = rotations[0];
+                delay = Config.Delay.Value;
             }
             isMoving = true;
         }
@@ -353,16 +485,6 @@ public class CameraFlow : SonsMod
 
     private static void clearCalculatedPaths()
     { 
-        calculatedPath.Clear();
-        calculatedRotations.Clear();
-        finalCalculatedPath.Clear();
-        finalCalculatedRotations.Clear();
-
-        segmentStarts.Clear();
-        segmentTValues.Clear();
-        accumulatedLenghts.Clear();
-
-        segmentLengths.Clear();
         totalLength = 0;
         positionsAlreadyCalculated = 0;
     }
@@ -386,81 +508,28 @@ public class CameraFlow : SonsMod
     private void MyUpdateMethod()
     {
         CameraFlowUi.Update();
-        if (Config.useOldPathing.Value)
+
+        moveCamera();
+
+        if(delay > 0)
         {
-            moveCameraOld();
-        } else
-        {
-            moveCamera();
+            delay--;
         }
+
     }
 
-    private void moveCameraOld()
-     {
-         if(!isMoving)
-         {
-             return;
-         }
-
-         if (isMoving && currentTargetIndex < finalCalculatedPath.Count - 1)
-         {
-             GameObject freeCam = GameObject.Find("MainCameraFP");
-             float moveSpeed = 0.1f * speed; // Adjust this value to control overall speed
-
-             // Calculate the maximum distance the camera can move this frame
-             float maxDistanceDelta = Time.deltaTime * moveSpeed;
-
-             // Calculate the direction to the target
-             Vector3 directionToTarget = (finalCalculatedPath[currentTargetIndex + 1] - freeCam.transform.position).normalized;
-
-             // Move the camera's position along the direction
-             Vector3 oldPosition = freeCam.transform.position;
-             freeCam.transform.position += directionToTarget * maxDistanceDelta;
-             Vector3 directionMoved = (freeCam.transform.position - oldPosition).normalized;
-
-             // Smoothly rotate the camera to the stored rotation
-             float distanceMoved = (freeCam.transform.position - finalCalculatedPath[currentTargetIndex]).magnitude;
-             float totalDistance = (finalCalculatedPath[currentTargetIndex + 1] - finalCalculatedPath[currentTargetIndex]).magnitude;
-             float t = (totalDistance > 0) ? distanceMoved / totalDistance : 0;
-
-             // Smoothly rotate the camera to the stored rotation
-             if (!removeRotation) {
-                 freeCam.transform.rotation = Quaternion.Slerp(finalCalculatedRotations[currentTargetIndex], finalCalculatedRotations[currentTargetIndex + 1], t);
-             }
-
-             // Check if the camera has moved past the target
-             if (Vector3.Dot(directionToTarget, directionMoved) < 0)
-             {
-                 currentTargetIndex++;
-             }
-             else if (Vector3.Distance(freeCam.transform.position, finalCalculatedPath[currentTargetIndex + 1]) < maxDistanceDelta)
-             {
-                 currentTargetIndex++;
-             }
-
-             if (currentTargetIndex >= finalCalculatedPath.Count - 1)
-             {
-                 StopMoving();
-                 SonsTools.ShowMessage("Camera flow ended");
-             }
-         }
-         else if (isMoving && currentTargetIndex >= finalCalculatedPath.Count - 2)
-         {
-             StopMoving();
-             SonsTools.ShowMessage("Camera flow ended");
-         }
-     }
+  
 
     public void moveCamera()
     {
 
-        if (!isMoving)
+        if (!isMoving || delay > 0)
         {
             return;
         }
 
-        List<Vector3> positionsTemporary = new List<Vector3>();
-        List<Quaternion> rotationsTemporary = new List<Quaternion>();
+        List<Vector3> positionsTemporary = new();
+        List<Quaternion> rotationsTemporary = new();
 
 
         // Calculate the direction of the first segment
@@ -474,48 +543,50 @@ public class CameraFlow : SonsMod
 
         // Calculate the position of the imaginary point
         Vector3 lastImaginaryPoint = positions[positions.Count - 1] + lastSegmentDirection * 10;  // Adjust the multiplier as needed
-
+        
         rotationsTemporary.Add(rotations[0]);
 
         //add imaginaryPoint to positionsTemporary
         positionsTemporary.Add(imaginaryPoint);
-
+        
         //add all other positions to positionsTemporary
         for (int i = 0; i < positions.Count; i++)
         {
             positionsTemporary.Add(positions[i]);
             rotationsTemporary.Add(rotations[i]);
         }
-
+        
         //add lastImaginaryPoint to positionsTemporary
         positionsTemporary.Add(lastImaginaryPoint);
 
         rotationsTemporary.Add(rotations[rotations.Count - 1]);
-
+        
         GameObject freeCam = GameObject.Find("MainCameraFP");
 
         // Calculate target distance for this frame
         float fixedTimeStep = 0.0166667f; // 60 FPS
         float distanceIncrement = (speed / 10) * fixedTimeStep;
         movedDistance += distanceIncrement * (Time.deltaTime / fixedTimeStep);
+        totalMovedDistance += distanceIncrement * (Time.deltaTime / fixedTimeStep);
+        float tempStepSize = distanceIncrement * (Time.deltaTime / fixedTimeStep);
         float desiredDistance = distanceIncrement * (Time.deltaTime / fixedTimeStep);
+        int targetIndex = lastFoundSegment;
 
-
-        // Find the current segment (always start from the first entry of the list)
-        int targetIndex = FindIndexForDistance(movedDistance, segmentStarts, 0);
-
-        // Ensure the index is valid (handle overshooting)
-        if (targetIndex >= segmentStarts.Count)
-        {
-            targetIndex = segmentStarts.Count - 1;
+        if(movedDistance >= segmentStarts[targetIndex])
+        { 
+            movedDistance -= segmentStarts[targetIndex];
+            targetIndex += 1;
+            lastFoundT = 0;
         }
 
         // Calculate T value within the current segment, start with the search at the last found index to speed up the search
-        int tIndex = FindIndexForDistance(movedDistance, accumulatedLenghts, lastFoundT);
-        float T = segmentTValues[tIndex];
+        int tIndex = FindIndexForDistance(movedDistance, accumulatedLenghtsCalculated[targetIndex], lastFoundT);
+        float T = segmentTValuesCalculated[targetIndex][tIndex];
         lastFoundT = tIndex;
 
-        if (movedDistance >= totalLength)
+
+
+        if (totalMovedDistance >= totalLength)
         {
             // Stop movement
             StopMoving();
@@ -546,14 +617,15 @@ public class CameraFlow : SonsMod
         if (Mathf.Abs(distanceToLast - desiredDistance) > 0.005 && isMoving)
         {
             RLog.Error("Step too big: " + desiredDistance + " vs " + distanceToLast);
-            RLog.Msg("Moved to position " + distanceToLast + " of " + totalLength + " Found T " + T + " at " + accumulatedLenghts[tIndex] + " current Segment: " + targetIndex + " at " + segmentStarts[targetIndex]);
+            RLog.Msg("Moved to position " + totalMovedDistance + " of " + totalLength + " \nFound T " + T + " at " + accumulatedLenghtsCalculated[targetIndex][tIndex] + " \nCurrent Segment: " + targetIndex + " with " + movedDistance + " of total " + segmentStarts[targetIndex]);
         }
 
         lastPosition = targetPoint;
+        lastFoundSegment = targetIndex;
     }
 
     // Helper method for search
-    private int FindIndexForDistance(float targetDistance, List<float> accumulatedDistances, int startFrom)
+    private static int FindIndexForDistance(float targetDistance, List<float> accumulatedDistances, int startFrom)
     {
         // Iterate from 0 upwards until we find the target distance or exceed it
         for (int i = startFrom; i < accumulatedDistances.Count; i++)
@@ -571,14 +643,21 @@ public class CameraFlow : SonsMod
 
     public static void drawPath(bool drawOrClear)
     {
-        if (calculatedPath.Count > 0)
+        if (finalPathCalculated.Count > 0)
         {
             if (drawOrClear)
             {
-                var pathPointsCalculated = finalCalculatedPath;
 
-                //DrawLine(pathPointsCalculated, 0.1f, 0.1f, Color.green);
-                //DrawLine(positions, 0.05f, 0.05f, Color.red);
+                List<Vector3> pathPointsCalculated = new();
+
+                for (int i = 0; i < finalPathCalculated.Count; i++)
+                {
+                    for (int j = 0; j < finalPathCalculated[i].Count; j++)
+                    {
+                        pathPointsCalculated.Add(finalPathCalculated[i][j]);
+                    }
+                    
+                }
 
                 for (int i = 0; i < positions.Count -1; i++)
                 {
@@ -1018,85 +1097,19 @@ public class CameraFlow : SonsMod
         RLog.Msg("Speed: " + speed + "  Speed calculated:  " + Time.deltaTime * (speed * 0.1f));
         RLog.Msg("Positions: " + positions.Count);
         RLog.Msg("Rotations: " + rotations.Count);
-        RLog.Msg("Calculated Path: " + calculatedPath.Count);
-        RLog.Msg("Calculated Rotations: " + calculatedRotations.Count);
-        RLog.Msg("Final Calculated Path: " + finalCalculatedPath.Count);
-        RLog.Msg("Final Calculated Rotations: " + finalCalculatedRotations.Count);
-        if(calculatedPath.Count != calculatedRotations.Count)
-        {
-            RLog.Error("DESYNC!!! Calculated Path and Calculated Rotations are not equal");
-        }
-        if (finalCalculatedPath.Count != finalCalculatedRotations.Count)
-        {
-            RLog.Error("DESYNC!!! Final Calculated Path and Final Calculated Rotations are not equal");
-        }
+
         RLog.Msg("Segment Lengths: " + segmentLengths.Count);
         RLog.Msg("Total Length: " + totalLength);
-        var ppu = calculatedPath.Count / totalLength;
-        RLog.Msg("Positiions per unit: " + ppu);
-        (float min, float max, float average) = CalculateDistances();
-        RLog.Msg($"Distances Calculated: Min: {min}, Max: {max}, Average: {average}");
-
-
-        (float minF, float maxF, float averageF) = CalculateDistancesFinal();
-        RLog.Msg($"Final Distances: Min: {minF}, Max: {maxF}, Average: {averageF}");
-        RLog.Msg("Final Points Amount: " + finalCalculatedPath.Count);
 
         RLog.Error("End Debugging Camera Flow");
 
         for (int i = 0; i < segmentStarts.Count; i++)
         {
-            RLog.Msg("Segment " + i + " " + segmentStarts[i]);
+            RLog.Msg("Segment " + i + " " + segmentStarts[i] + " Segment Position Count " + accumulatedLenghtsCalculated[i].Count + " T " + segmentTValuesCalculated[i].Count);
         }
     }
 
-    public (float min, float max, float average) CalculateDistances()
-    {
-        if (calculatedPath.Count < 2)
-        {
-            return (0, 0, 0);
-        }
 
-        float minDistance = float.MaxValue;
-        float maxDistance = float.MinValue;
-        float totalDistance = 0;
-
-        for (int i = 0; i < calculatedPath.Count - 1; i++)
-        {
-            float distance = Vector3.Distance(calculatedPath[i], calculatedPath[i + 1]);
-            minDistance = Mathf.Min(minDistance, distance);
-            maxDistance = Mathf.Max(maxDistance, distance);
-            totalDistance += distance;
-        }
-
-        float averageDistance = totalDistance / (calculatedPath.Count - 1);
-
-        return (minDistance, maxDistance, averageDistance);
-    }
-
-    public (float min, float max, float average) CalculateDistancesFinal()
-    {
-        if (finalCalculatedPath.Count < 2)
-        {
-            return (0, 0, 0);
-        }
-
-        float minDistance = float.MaxValue;
-        float maxDistance = float.MinValue;
-        float totalDistance = 0;
-
-        for (int i = 0; i < finalCalculatedPath.Count - 1; i++)
-        {
-            float distance = Vector3.Distance(finalCalculatedPath[i], finalCalculatedPath[i + 1]);
-            minDistance = Mathf.Min(minDistance, distance);
-            maxDistance = Mathf.Max(maxDistance, distance);
-            totalDistance += distance;
-        }
-
-        float averageDistance = totalDistance / (finalCalculatedPath.Count - 1);
-
-        return (minDistance, maxDistance, averageDistance);
-    }
     //SUI Bullshittery
 
     public void MenuToggle()
