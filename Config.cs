@@ -1,8 +1,6 @@
+namespace CameraFlow;
 using RedLoader;
 using RedLoader.Preferences;
-using SonsSdk;
-
-namespace CameraFlow;
 
 public static class Config
 {
@@ -20,7 +18,7 @@ public static class Config
 
 
 
-public static void Init()
+    public static void Init()
     {
         Category = ConfigSystem.CreateFileCategory("Base Configuration", "Base Configuration", "CameraFlow.cfg");
         Speed = Category.CreateEntry(
@@ -89,10 +87,7 @@ public static void Init()
     }
 
     // Same as the callback in "CreateSettings". Called when the settings ui is closed.
-    public static void OnSettingsUiClosed()
-    {
+    public static void OnSettingsUiClosed() =>
         // Update the speed variable
-        CameraFlow.CalculatePath(true);
-        
-    }
+        CameraFlow.CalculatePath();
 }

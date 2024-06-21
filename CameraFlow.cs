@@ -1,37 +1,28 @@
-﻿using SonsSdk;
-using SonsSdk.Attributes;
-using TheForest.Utils;
-using UnityEngine;
-using RedLoader;
-using TheForest;
-using SUI;
-using static SUI.SUI;
+namespace CameraFlow;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Sons.Animation;
-using Newtonsoft.Json.Linq;
-using System.ComponentModel.Design;
-
-namespace CameraFlow;
+using RedLoader;
+using SonsSdk;
+using SonsSdk.Attributes;
+using SUI;
+using TheForest;
+using TheForest.Utils;
+using UnityEngine;
+using static SUI.SUI;
 
 public class CameraFlow : SonsMod
 {
-    public CameraFlow()
-    {
+    public CameraFlow() =>
         //OnUpdateCallback = MyUpdateMethod;
-        OnFixedUpdateCallback = MyUpdateMethod;
-    }
+        this.OnFixedUpdateCallback = this.MyUpdateMethod;
 
-    protected override void OnInitializeMod()
-    {
-        Config.Init();
-    }
+    protected override void OnInitializeMod() => Config.Init();
 
     protected override void OnSdkInitialized()
     {
         CameraFlowUi.Create();
         var panel = GetPanel("SidePanel");
-        panel.Active(false);
+        _ = panel.Active(false);
 
         // Add in-game settings ui for your mod.
         SettingsRegistry.CreateSettings(this, null, typeof(Config));
@@ -39,10 +30,10 @@ public class CameraFlow : SonsMod
         resolution = Config.Resolution.Value;
         Config.MenuKey.Notify(MenuToggle);
         Config.PosKey.Notify(setPosition);
-        Config.DrawKey.Notify(drawToggle);
+        Config.DrawKey.Notify(this.drawToggle);
         Config.StartCamKey.Notify(StartMoving);
 
-        if(Config.ForceUi.Value)
+        if (Config.ForceUi.Value)
         {
             toggleUI(true);
         }
@@ -54,7 +45,7 @@ public class CameraFlow : SonsMod
 
     protected override void OnSonsSceneInitialized(ESonsScene sonsScene)
     {
-        if (sonsScene == ESonsScene.Title || sonsScene == ESonsScene.Loading)
+        if (sonsScene is ESonsScene.Title or ESonsScene.Loading)
         {
             if (isMoving)
             {
@@ -70,54 +61,50 @@ public class CameraFlow : SonsMod
     }
 
     private static int speed = 1;  // Speed of the movement
-    private static int positionsAlreadyCalculated = 0;
     private static int resolution = 100;
-    public static int selectedPoint = 0;
+    public static int selectedPoint;
 
-    private static bool isMoving = false;
-    private static bool panelActive = false;
-    public static bool currentlyDrawing = false;
+    private static bool isMoving;
+    private static bool panelActive;
+    public static bool currentlyDrawing;
 
     public static List<Vector3> positions = new();
     public static List<Quaternion> rotations = new();
-    private static List<float> segmentLengths = new();
-    private static List<float> segmentStarts = new();
+    private static readonly List<float> segmentLengths = new();
+    private static readonly List<float> segmentStarts = new();
 
-    private static int lastFoundT = 0;
-    private static float movedDistance = 0f;
-    private static float totalMovedDistance = 0f;
+    private static int lastFoundT;
+    private static float movedDistance;
+    private static float totalMovedDistance;
     private static Vector3 lastPosition = Vector3.zero;
-    private static int lastFoundSegment = 0;
-    private static int delay = 0;
+    private static int lastFoundSegment;
+    private static int delay;
 
-    private static List<List<Vector3>> segmentsCalculatedUsedPositions = new();
-    private static List<List<Quaternion>> segmentsCalculatedUsedRotations = new();
-    private static List<List<Vector3>> segmentsCalculatedPath = new();
-    private static List<List<Quaternion>> segmentsCalculatedRotations = new();
-    private static List<List<float>> segmentTValuesCalculated = new();
-    private static List<List<float>> accumulatedLenghtsCalculated = new();
-    private static List<List<Vector3>> finalPathCalculated = new();
-    private static List<List<Quaternion>> finalRotationsCalculated = new();
-    private static List<float> CalculatedSegmentLenghts = new();
+    private static readonly List<List<Vector3>> segmentsCalculatedUsedPositions = new();
+    private static readonly List<List<Quaternion>> segmentsCalculatedUsedRotations = new();
+    private static readonly List<List<Vector3>> segmentsCalculatedPath = new();
+    private static readonly List<List<Quaternion>> segmentsCalculatedRotations = new();
+    private static readonly List<List<float>> segmentTValuesCalculated = new();
+    private static readonly List<List<float>> accumulatedLenghtsCalculated = new();
+    private static readonly List<List<Vector3>> drawingPathCalculated = new();
+    private static readonly List<float> CalculatedSegmentLenghts = new();
 
-    private static List<GameObject> cubes = new();
-    private static List<SonsSdk.DebugTools.LineDrawer> lines = new();
-    private static List<SonsSdk.DebugTools.LineDrawer> lineDrawers = new();
-    
-    
-    private static Vector3 startPos = Vector3.zero;
+    private static readonly List<GameObject> Cubes = new();
+    private static readonly List<DebugTools.LineDrawer> Lines = new();
+    private static readonly List<DebugTools.LineDrawer> LineDrawers = new();
+    private static GameObject mainCamera;
 
-    private static float tSegment = 0f;
-    private static float totalLength = 0f;
+    private static float tSegment;
+    private static float totalLength;
 
     public static string fileLocation = $"Mods/CameraFlow/";
 
     //B-Splines
-    public static void CalculatePath(bool force)
+    public static void CalculatePath()
     {
         List<Vector3> positionsTemporary = new();
         List<Quaternion> rotationsTemporary = new();
-        bool forceFullRecalculation = false;
+        var forceFullRecalculation = false;
 
         if (resolution != Config.Resolution.Value)
         {
@@ -132,7 +119,8 @@ public class CameraFlow : SonsMod
         }
 
         //destroy path before starting
-        if (currentlyDrawing) { drawPath(false); }
+        if (currentlyDrawing)
+        { drawPath(false); }
 
         if (positions.Count < 4)  // Need at least 4 points for B-Splines
         {
@@ -140,64 +128,60 @@ public class CameraFlow : SonsMod
         }
 
         //Create temporary lists to compare the new positions with the old ones 
-        List<float> TempSegmentStarts = segmentStarts.ToList();
+        _ = segmentStarts.ToList();
 
-        clearCalculatedPaths();
-
-        
         // Calculate the direction of the first segment
-        Vector3 firstSegmentDirection = (positions[1] - positions[0]).normalized;
+        var firstSegmentDirection = (positions[1] - positions[0]).normalized;
 
         // Calculate the position of the imaginary point
-        Vector3 imaginaryPoint = positions[0] - firstSegmentDirection * 10;  // Adjust the multiplier as needed
+        var imaginaryPoint = positions[0] - (firstSegmentDirection * 10);  // Adjust the multiplier as needed
 
         // Calculate the direction of the last segment
-        Vector3 lastSegmentDirection = (positions[positions.Count - 1] - positions[positions.Count - 2]).normalized;
+        var lastSegmentDirection = (positions[^1] - positions[^2]).normalized;
 
         // Calculate the position of the imaginary point
-        Vector3 lastImaginaryPoint = positions[positions.Count - 1] + lastSegmentDirection * 10;  // Adjust the multiplier as needed
+        var lastImaginaryPoint = positions[^1] + (lastSegmentDirection * 10);  // Adjust the multiplier as needed
 
-        
         rotationsTemporary.Add(rotations[0]);
 
         //add imaginaryPoint to positionsTemporary
         positionsTemporary.Add(imaginaryPoint);
-        
 
         //add all other positions to positionsTemporary
-        for (int i = 0; i < positions.Count; i++)
+        for (var i = 0; i < positions.Count; i++)
         {
             positionsTemporary.Add(positions[i]);
             rotationsTemporary.Add(rotations[i]);
         }
-        
+
         //add lastImaginaryPoint to positionsTemporary
         positionsTemporary.Add(lastImaginaryPoint);
 
-        rotationsTemporary.Add(rotations[rotations.Count - 1]);
-        
+        rotationsTemporary.Add(rotations[^1]);
+
         // Calculate the lengths of all segments and the total length of the path
-        for (int i = 0; i < positionsTemporary.Count - 3; i++)
+        totalLength = 0;
+        for (var i = 0; i < positionsTemporary.Count - 3; i++)
         {
-            float segmentLength = CalculateBSplineLength(positionsTemporary[i], positionsTemporary[i + 1], positionsTemporary[i + 2], positionsTemporary[i + 3], resolution);
+            var segmentLength = CalculateBSplineLength(positionsTemporary[i], positionsTemporary[i + 1], positionsTemporary[i + 2], positionsTemporary[i + 3], resolution);
             segmentLengths.Add(segmentLength);
             totalLength += segmentLength;
         }
 
         // Decide on the spacing you want between points
-        float spacing = 1.0f / resolution; // This will give you 'resolution' number of points per unit distance
+        var spacing = 1.0f / resolution; // This will give you 'resolution' number of points per unit distance
 
         // Calculate the positions and rotations of the points
         float accumulatedLength = 0;
-        int segmentIndex = 0;
-        int iteration = 0;
-        float targetDistance = speed / 100f;
-        float currentDistance = 0;
-        bool checkedSegmentforChanges = false;
+        var segmentIndex = 0;
+        var targetDistance = speed / 100f;
+        float segmentDistance = 0;
+        var checkedSegmentforChanges = false;
         float realMovedLength = 0;
 
         EnsureListCapacity(positionsTemporary.Count - 3);
-        try {
+        try
+        {
             while (segmentIndex < positionsTemporary.Count - 3)
             {
 
@@ -219,13 +203,13 @@ public class CameraFlow : SonsMod
                         rotationsTemporary[segmentIndex + 3]
                     };
 
-                    bool segmentChanged = false;
-                    
+                    var segmentChanged = false;
+
                     if (segmentsCalculatedUsedPositions.Count > segmentIndex)  // Ensure the index is valid
                     {
-                        
+
                         // Compare each control point in usedPositions with the corresponding cached position
-                        for (int i = 0; i < 4; i++)
+                        for (var i = 0; i < 4; i++)
                         {
                             if (segmentsCalculatedUsedPositions[segmentIndex].Count == 0)
                             {
@@ -239,7 +223,6 @@ public class CameraFlow : SonsMod
                                 break; // No need to continue checking if one point is different
                             }
                         }
-                        
                     }
                     else
                     {
@@ -252,7 +235,8 @@ public class CameraFlow : SonsMod
                         segmentChanged = true;
                     }
 
-                    if (segmentChanged) {
+                    if (segmentChanged)
+                    {
                         RLog.Msg("Segment " + segmentIndex + " changed");
                         checkedSegmentforChanges = true;
 
@@ -261,11 +245,11 @@ public class CameraFlow : SonsMod
                         segmentsCalculatedRotations[segmentIndex].Clear();
                         accumulatedLenghtsCalculated[segmentIndex].Clear();
                         segmentTValuesCalculated[segmentIndex].Clear();
-                        finalPathCalculated[segmentIndex].Clear();
-                        finalRotationsCalculated[segmentIndex].Clear();
+                        drawingPathCalculated[segmentIndex].Clear();
+                    }
+                    else
+                    {
 
-                    } else {
-                        
                         //Not changed, use cached values
                         checkedSegmentforChanges = false;
                         segmentIndex++;
@@ -276,13 +260,13 @@ public class CameraFlow : SonsMod
                 tSegment = Mathf.Clamp01(accumulatedLength / segmentLengths[segmentIndex]);
 
                 // Calculate the position at this point on the curve
-                Vector3 pointOnCurve = CalculateBSplinePoint(tSegment, 
-                    positionsTemporary[segmentIndex], positionsTemporary[segmentIndex + 1], 
-                    positionsTemporary[segmentIndex + 2], 
+                var pointOnCurve = CalculateBSplinePoint(tSegment,
+                    positionsTemporary[segmentIndex], positionsTemporary[segmentIndex + 1],
+                    positionsTemporary[segmentIndex + 2],
                     positionsTemporary[segmentIndex + 3]);
-            
 
-                Quaternion rotOnCurve = CalculateBSplineRotation(tSegment,
+
+                var rotOnCurve = CalculateBSplineRotation(tSegment,
                     rotationsTemporary[segmentIndex],
                     rotationsTemporary[segmentIndex + 1],
                     rotationsTemporary[segmentIndex + 2],
@@ -293,10 +277,10 @@ public class CameraFlow : SonsMod
                 //add the lenght at the current position
 
                 //if there are already two points in segmentsCalculatedPath we can calculate the distance between them
-                float distanceMoved = 0f;
+                var distanceMoved = 0f;
                 if (segmentsCalculatedPath[segmentIndex].Count > 1)
                 {
-                    distanceMoved = Vector3.Distance(segmentsCalculatedPath[segmentIndex][segmentsCalculatedPath[segmentIndex].Count - 1], segmentsCalculatedPath[segmentIndex][segmentsCalculatedPath[segmentIndex].Count - 2]);
+                    distanceMoved = Vector3.Distance(segmentsCalculatedPath[segmentIndex][^1], segmentsCalculatedPath[segmentIndex][^2]);
                     realMovedLength += distanceMoved;
                 }
 
@@ -316,7 +300,7 @@ public class CameraFlow : SonsMod
                     // Subtract the length of the current segment and move on to the next one
                     accumulatedLength -= segmentLengths[segmentIndex];
 
-                    List<Vector3> usedPositions = new() 
+                    List<Vector3> usedPositions = new()
                     {
                         positionsTemporary[segmentIndex],
                         positionsTemporary[segmentIndex + 1],
@@ -338,39 +322,25 @@ public class CameraFlow : SonsMod
 
                     checkedSegmentforChanges = false;
                     segmentIndex++;
-                    iteration = 0;
                 }
 
                 //Find the distance moved on this iteration and add it to the totalAccumulatedLength
-                if (iteration != 0)
-                {
-                    currentDistance += distanceMoved;
-                }
-                else
-                {
-                    finalPathCalculated[segmentIndex].Add(pointOnCurve);
-                    finalRotationsCalculated[segmentIndex].Add(rotOnCurve);
-                }
 
-                if (currentDistance >= targetDistance)
-                {
-                    finalPathCalculated[segmentIndex].Add(pointOnCurve);
-                    finalRotationsCalculated[segmentIndex].Add(rotOnCurve);
-                    currentDistance = 0;
-                }
+                segmentDistance += distanceMoved;
 
-                iteration++;
+
+                if (segmentDistance >= targetDistance)
+                {
+                    drawingPathCalculated[segmentIndex].Add(pointOnCurve);
+                    segmentDistance = 0;
+                }
             }
-
-
-
-
-        } catch (Exception ex)
+        }
+        catch (Exception ex)
         {
             RLog.Error("An error occurred while calculating the path: " + ex.ToString());
         }
-        
-        positionsAlreadyCalculated = positions.Count;
+
         drawRefresh();
     }
 
@@ -384,8 +354,7 @@ public class CameraFlow : SonsMod
             segmentsCalculatedRotations.Add(new List<Quaternion>());
             accumulatedLenghtsCalculated.Add(new List<float>());
             segmentTValuesCalculated.Add(new List<float>());
-            finalPathCalculated.Add(new List<Vector3>());
-            finalRotationsCalculated.Add(new List<Quaternion>());
+            drawingPathCalculated.Add(new List<Vector3>());
             CalculatedSegmentLenghts.Add(0);
             segmentStarts.Add(0);
         }
@@ -393,28 +362,26 @@ public class CameraFlow : SonsMod
 
     public static Vector3 CalculateBSplinePoint(float t, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3)
     {
-        float it = 1.0f - t;
-
-        Vector3 b0 = p0 * (-t * t * t + 3 * t * t - 3 * t + 1);
-        Vector3 b1 = p1 * (3 * t * t * t - 6 * t * t + 4);
-        Vector3 b2 = p2 * (-3 * t * t * t + 3 * t * t + 3 * t + 1);
-        Vector3 b3 = p3 * t * t * t;
+        var b0 = p0 * ((-t * t * t) + (3 * t * t) - (3 * t) + 1);
+        var b1 = p1 * ((3 * t * t * t) - (6 * t * t) + 4);
+        var b2 = p2 * ((-3 * t * t * t) + (3 * t * t) + (3 * t) + 1);
+        var b3 = p3 * t * t * t;
 
         return (b0 + b1 + b2 + b3) / 6.0f;
     }
 
     public static Quaternion CalculateBSplineRotation(float t, Quaternion q0, Quaternion q1, Quaternion q2, Quaternion q3)
     {
-        float u = t;
+        var u = t;
 
         // B-spline blending functions (same as before)
-        float a0 = (1 - u) * (1 - u) * (1 - u) / 6f;
-        float a1 = (3 * u * u * u - 6 * u * u + 4) / 6f;
-        float a2 = (-3 * u * u * u + 3 * u * u + 3 * u + 1) / 6f;
-        float a3 = u * u * u / 6f;
+        var a0 = (1 - u) * (1 - u) * (1 - u) / 6f;
+        var a1 = ((3 * u * u * u) - (6 * u * u) + 4) / 6f;
+        var a2 = ((-3 * u * u * u) + (3 * u * u) + (3 * u) + 1) / 6f;
+        var a3 = u * u * u / 6f;
 
         // Combine weighted quaternions using Slerp (multiple times for accuracy)
-        Quaternion result = Quaternion.Slerp(q0, q1, a1 / (a0 + a1));
+        var result = Quaternion.Slerp(q0, q1, a1 / (a0 + a1));
         result = Quaternion.Slerp(result, q2, a2 / (a0 + a1 + a2));
         result = Quaternion.Slerp(result, q3, a3 / (a0 + a1 + a2 + a3));
 
@@ -423,13 +390,13 @@ public class CameraFlow : SonsMod
 
     public static float CalculateBSplineLength(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, int resolution)
     {
-        float length = 0.0f;
-        Vector3 previousPoint = CalculateBSplinePoint(0, p0, p1, p2, p3);
+        var length = 0.0f;
+        var previousPoint = CalculateBSplinePoint(0, p0, p1, p2, p3);
 
-        for (int i = 1; i <= resolution; i++)
+        for (var i = 1; i <= resolution; i++)
         {
-            float t = (float)i / resolution;
-            Vector3 currentPoint = CalculateBSplinePoint(t, p0, p1, p2, p3);
+            var t = (float)i / resolution;
+            var currentPoint = CalculateBSplinePoint(t, p0, p1, p2, p3);
             length += Vector3.Distance(previousPoint, currentPoint);
             previousPoint = currentPoint;
         }
@@ -437,14 +404,14 @@ public class CameraFlow : SonsMod
         return length;
     }
 
-    public void StartMoving()
+    public static void StartMoving()
     {
         if (speed != Config.Speed.Value)
         {
             speed = Config.Speed.Value;
         }
 
-        if(isMoving)
+        if (isMoving)
         {
             StopMoving();
             return;
@@ -455,10 +422,14 @@ public class CameraFlow : SonsMod
             SonsTools.ShowMessage("Not enough points to calculate path");
             return;
         }
-        else 
+        else
         {
-            if (panelActive) MenuToggle(); 
-            CalculatePath(false);
+            if (panelActive)
+            {
+                MenuToggle();
+            }
+
+            CalculatePath();
             SetCameraMovementSittingFix(false);
             LocalPlayer.RaceSystem.SwitchToThirdPerson();
             ToggleFreeCamera(true);
@@ -472,7 +443,7 @@ public class CameraFlow : SonsMod
             lastFoundSegment = 0;
 
             // Set the camera's position to the first position in the list
-            GameObject freeCam = GameObject.Find("MainCameraFP");
+            var freeCam = GameObject.Find("MainCameraFP");
             if (positions.Count > 0)
             {
                 freeCam.transform.position = positions[0];
@@ -484,12 +455,21 @@ public class CameraFlow : SonsMod
     }
 
     private static void clearCalculatedPaths()
-    { 
-        totalLength = 0;
-        positionsAlreadyCalculated = 0;
+    {
+        segmentsCalculatedUsedPositions.Clear();
+        segmentsCalculatedUsedRotations.Clear();
+        segmentsCalculatedPath.Clear();
+        segmentsCalculatedRotations.Clear();
+        accumulatedLenghtsCalculated.Clear();
+        segmentTValuesCalculated.Clear();
+        drawingPathCalculated.Clear();
+        CalculatedSegmentLenghts.Clear();
+        segmentStarts.Clear();
+        removePathAndPositions();
+
     }
 
-    public void StopMoving()
+    public static void StopMoving()
     {
         //StopMoveCamera();
         LocalPlayer.RaceSystem.SwitchToFirstPerson();
@@ -511,16 +491,14 @@ public class CameraFlow : SonsMod
 
         moveCamera();
 
-        if(delay > 0)
+        if (delay > 0)
         {
             delay--;
         }
 
     }
 
-  
-
-    public void moveCamera()
+    public static void moveCamera()
     {
 
         if (!isMoving || delay > 0)
@@ -533,58 +511,60 @@ public class CameraFlow : SonsMod
 
 
         // Calculate the direction of the first segment
-        Vector3 firstSegmentDirection = (positions[1] - positions[0]).normalized;
+        var firstSegmentDirection = (positions[1] - positions[0]).normalized;
 
         // Calculate the position of the imaginary point
-        Vector3 imaginaryPoint = positions[0] - firstSegmentDirection * 10;  // Adjust the multiplier as needed
+        var imaginaryPoint = positions[0] - (firstSegmentDirection * 10);  // Adjust the multiplier as needed
 
         // Calculate the direction of the last segment
-        Vector3 lastSegmentDirection = (positions[positions.Count - 1] - positions[positions.Count - 2]).normalized;
+        var lastSegmentDirection = (positions[^1] - positions[^2]).normalized;
 
         // Calculate the position of the imaginary point
-        Vector3 lastImaginaryPoint = positions[positions.Count - 1] + lastSegmentDirection * 10;  // Adjust the multiplier as needed
-        
+        var lastImaginaryPoint = positions[^1] + (lastSegmentDirection * 10);  // Adjust the multiplier as needed
+
         rotationsTemporary.Add(rotations[0]);
 
         //add imaginaryPoint to positionsTemporary
         positionsTemporary.Add(imaginaryPoint);
-        
+
         //add all other positions to positionsTemporary
-        for (int i = 0; i < positions.Count; i++)
+        for (var i = 0; i < positions.Count; i++)
         {
             positionsTemporary.Add(positions[i]);
             rotationsTemporary.Add(rotations[i]);
         }
-        
+
         //add lastImaginaryPoint to positionsTemporary
         positionsTemporary.Add(lastImaginaryPoint);
 
-        rotationsTemporary.Add(rotations[rotations.Count - 1]);
-        
-        GameObject freeCam = GameObject.Find("MainCameraFP");
+        rotationsTemporary.Add(rotations[^1]);
+
+        if (mainCamera == null)
+        {
+            mainCamera = GameObject.Find("MainCameraFP");
+        }
 
         // Calculate target distance for this frame
-        float fixedTimeStep = 0.0166667f; // 60 FPS
-        float distanceIncrement = (speed / 10) * fixedTimeStep;
+        var fixedTimeStep = 0.0166667f; // 60 FPS
+        var distanceIncrement = speed / 10 * fixedTimeStep;
         movedDistance += distanceIncrement * (Time.deltaTime / fixedTimeStep);
         totalMovedDistance += distanceIncrement * (Time.deltaTime / fixedTimeStep);
-        float tempStepSize = distanceIncrement * (Time.deltaTime / fixedTimeStep);
-        float desiredDistance = distanceIncrement * (Time.deltaTime / fixedTimeStep);
-        int targetIndex = lastFoundSegment;
 
-        if(movedDistance >= segmentStarts[targetIndex])
-        { 
+        _ = distanceIncrement * (Time.deltaTime / fixedTimeStep);
+        var desiredDistance = distanceIncrement * (Time.deltaTime / fixedTimeStep);
+        var targetIndex = lastFoundSegment;
+
+        if (movedDistance >= segmentStarts[targetIndex])
+        {
             movedDistance -= segmentStarts[targetIndex];
             targetIndex += 1;
             lastFoundT = 0;
         }
 
         // Calculate T value within the current segment, start with the search at the last found index to speed up the search
-        int tIndex = FindIndexForDistance(movedDistance, accumulatedLenghtsCalculated[targetIndex], lastFoundT);
-        float T = segmentTValuesCalculated[targetIndex][tIndex];
+        var tIndex = FindIndexForDistance(movedDistance, accumulatedLenghtsCalculated[targetIndex], lastFoundT);
+        var T = segmentTValuesCalculated[targetIndex][tIndex];
         lastFoundT = tIndex;
-
-
 
         if (totalMovedDistance >= totalLength)
         {
@@ -595,24 +575,24 @@ public class CameraFlow : SonsMod
         }
 
         // Evaluate B-spline and move the object
-        Vector3 targetPoint = CalculateBSplinePoint(T,
+        var targetPoint = CalculateBSplinePoint(T,
                                                     positionsTemporary[targetIndex],
                                                     positionsTemporary[targetIndex + 1],
                                                     positionsTemporary[targetIndex + 2],
                                                     positionsTemporary[targetIndex + 3]);
 
-        freeCam.transform.position = targetPoint;
+        mainCamera.transform.position = targetPoint;
 
-        Quaternion targetRotation = CalculateBSplineRotation(T,
+        var targetRotation = CalculateBSplineRotation(T,
                                                     rotationsTemporary[targetIndex],
                                                     rotationsTemporary[targetIndex + 1],
                                                     rotationsTemporary[targetIndex + 2],
                                                     rotationsTemporary[targetIndex + 3]);
-        
-        float distanceToLast = Vector3.Distance(lastPosition, targetPoint);
+
+        var distanceToLast = Vector3.Distance(lastPosition, targetPoint);
 
         // Set the camera's rotation
-        freeCam.transform.rotation = targetRotation;
+        mainCamera.transform.rotation = targetRotation;
 
         if (Mathf.Abs(distanceToLast - desiredDistance) > 0.005 && isMoving)
         {
@@ -628,7 +608,7 @@ public class CameraFlow : SonsMod
     private static int FindIndexForDistance(float targetDistance, List<float> accumulatedDistances, int startFrom)
     {
         // Iterate from 0 upwards until we find the target distance or exceed it
-        for (int i = startFrom; i < accumulatedDistances.Count; i++)
+        for (var i = startFrom; i < accumulatedDistances.Count; i++)
         {
             if (accumulatedDistances[i] >= targetDistance)
             {
@@ -640,38 +620,37 @@ public class CameraFlow : SonsMod
         return accumulatedDistances.Count - 1; // Return the last index
     }
 
-
     public static void drawPath(bool drawOrClear)
     {
-        if (finalPathCalculated.Count > 0)
+        if (drawingPathCalculated.Count > 0)
         {
             if (drawOrClear)
             {
 
                 List<Vector3> pathPointsCalculated = new();
 
-                for (int i = 0; i < finalPathCalculated.Count; i++)
+                for (var i = 0; i < drawingPathCalculated.Count; i++)
                 {
-                    for (int j = 0; j < finalPathCalculated[i].Count; j++)
+                    for (var j = 0; j < drawingPathCalculated[i].Count; j++)
                     {
-                        pathPointsCalculated.Add(finalPathCalculated[i][j]);
+                        pathPointsCalculated.Add(drawingPathCalculated[i][j]);
                     }
-                    
+
                 }
 
-                for (int i = 0; i < positions.Count -1; i++)
+                for (var i = 0; i < positions.Count - 1; i++)
                 {
                     var List = new List<Vector3> { positions[i], positions[i + 1] };
                     DrawLine(List, 0.02f, 0.02f, Color.red);
                 }
 
-                int segmentCount = positions.Count - 1;
-                int pointsPerSegment = pathPointsCalculated.Count / segmentCount;
+                var segmentCount = positions.Count - 1;
+                var pointsPerSegment = pathPointsCalculated.Count / segmentCount;
 
-                for (int i = 0; i < segmentCount; i++)
+                for (var i = 0; i < segmentCount; i++)
                 {
-                    int start = i * pointsPerSegment;
-                    int end = (i == segmentCount - 1) ? pathPointsCalculated.Count : start + pointsPerSegment;
+                    var start = i * pointsPerSegment;
+                    var end = (i == segmentCount - 1) ? pathPointsCalculated.Count : start + pointsPerSegment;
 
                     var segmentPoints = pathPointsCalculated.GetRange(start, end - start);
 
@@ -684,68 +663,66 @@ public class CameraFlow : SonsMod
                     DrawLine(segmentPoints, 0.05f, 0.05f, Color.green);
                 }
 
-                for (int i = 0; i < positions.Count; i++)
+                for (var i = 0; i < positions.Count; i++)
                 {
                     var position = positions[i];
                     var rotation = rotations[i];
                     if (i == selectedPoint)
                     {
-                        var cube = SonsSdk.DebugTools.CreateCuboid(position, new Vector3(0.3f, 0.3f, 0.3f), Color.yellow, false);
-                        cubes.Add(cube.gameObject);
+                        var cube = DebugTools.CreateCuboid(position, new Vector3(0.3f, 0.3f, 0.3f), Color.yellow, false);
+                        Cubes.Add(cube.gameObject);
                     }
                     else
                     {
-                        var cube = SonsSdk.DebugTools.CreateCuboid(position, new Vector3(0.2f, 0.2f, 0.2f), Color.gray, false);
-                        cubes.Add(cube.gameObject);
+                        var cube = DebugTools.CreateCuboid(position, new Vector3(0.2f, 0.2f, 0.2f), Color.gray, false);
+                        Cubes.Add(cube.gameObject);
                     }
-                   
 
-                    // Draw lines representing the x, y, and z axes
-                    var xLine = new SonsSdk.DebugTools.LineDrawer();
+                    // Draw Lines representing the x, y, and z axes
+                    var xLine = new DebugTools.LineDrawer();
                     xLine.SetLine(position, position + Vector3.right);
                     xLine.LineRenderer.material.color = Color.red;
                     xLine.LineRenderer.startWidth = 0.08f;
                     xLine.LineRenderer.endWidth = 0.03f;
-                    lines.Add(xLine);
+                    Lines.Add(xLine);
 
-                    var yLine = new SonsSdk.DebugTools.LineDrawer();
+                    var yLine = new DebugTools.LineDrawer();
                     yLine.SetLine(position, position + Vector3.up);
                     yLine.LineRenderer.material.color = Color.green;
                     yLine.LineRenderer.startWidth = 0.08f;
                     yLine.LineRenderer.endWidth = 0.03f;
-                    lines.Add(yLine);
+                    Lines.Add(yLine);
 
-                    var zLine = new SonsSdk.DebugTools.LineDrawer();
+                    var zLine = new DebugTools.LineDrawer();
                     zLine.SetLine(position, position + Vector3.forward);
                     zLine.LineRenderer.material.color = Color.blue;
                     zLine.LineRenderer.startWidth = 0.08f;
                     zLine.LineRenderer.endWidth = 0.03f;
-                    lines.Add(zLine);
+                    Lines.Add(zLine);
 
                     // Draw a line in the direction the rotation is facing
-                    var rotationLine = new SonsSdk.DebugTools.LineDrawer();
-                    rotationLine.SetLine(position, position + rotation * Vector3.forward);  // Multiply the rotation by Vector3.forward to get the forward vector of the rotation
+                    var rotationLine = new DebugTools.LineDrawer();
+                    rotationLine.SetLine(position, position + (rotation * Vector3.forward));  // Multiply the rotation by Vector3.forward to get the forward vector of the rotation
                     rotationLine.LineRenderer.material.color = Color.white;
                     rotationLine.LineRenderer.startWidth = 0.1f;
                     rotationLine.LineRenderer.endWidth = 0.1f;
-                    lines.Add(rotationLine);
+                    Lines.Add(rotationLine);
                 }
-                
+
             }
             else
             {
-                if (lineDrawers.Count != 0)
+                if (LineDrawers.Count != 0)
                 {
                     removePath();
                 }
             }
         }
     }
-
     private static void DrawLine(List<Vector3> points, float startWidth, float endWidth, Color color)
     {
         // Draw the line from front to back
-        var lineDrawer = new SonsSdk.DebugTools.LineDrawer();
+        var lineDrawer = new DebugTools.LineDrawer();
         var lineRenderer = lineDrawer.LineRenderer;
         lineRenderer.startWidth = startWidth;
         lineRenderer.endWidth = endWidth;
@@ -755,13 +732,13 @@ public class CameraFlow : SonsMod
         lineRenderer.positionCount = points.Count;
         lineRenderer.SetPositions(points.ToArray());
         lineRenderer.enabled = true;
-        lineDrawers.Add(lineDrawer);
+        LineDrawers.Add(lineDrawer);
 
         // Draw the line from back to front
         var pointsBackwards = new List<Vector3>(points);
         pointsBackwards.Reverse();
 
-        lineDrawer = new SonsSdk.DebugTools.LineDrawer();
+        lineDrawer = new DebugTools.LineDrawer();
         lineRenderer = lineDrawer.LineRenderer;
         lineRenderer.startWidth = startWidth;
         lineRenderer.endWidth = endWidth;
@@ -771,30 +748,30 @@ public class CameraFlow : SonsMod
         lineRenderer.positionCount = points.Count;
         lineRenderer.SetPositions(pointsBackwards.ToArray());
         lineRenderer.enabled = true;
-        lineDrawers.Add(lineDrawer);
+        LineDrawers.Add(lineDrawer);
     }
 
     private static void removePath()
     {
-        if (lineDrawers.Count != 0)
+        if (LineDrawers.Count != 0)
         {
-            foreach (var lineDrawer in lineDrawers)
+            foreach (var lineDrawer in LineDrawers)
             {
                 lineDrawer.Destroy();
             }
-            lineDrawers.Clear();
+            LineDrawers.Clear();
 
-            foreach (var cube in cubes)
+            foreach (var cube in Cubes)
             {
-                GameObject.Destroy(cube);
+                Object.Destroy(cube);
             }
-            cubes.Clear();
+            Cubes.Clear();
 
-            foreach (var line in lines)
+            foreach (var line in Lines)
             {
                 line.Destroy();
             }
-            lines.Clear();
+            Lines.Clear();
         }
     }
 
@@ -823,7 +800,8 @@ public class CameraFlow : SonsMod
 
     public static void drawRefresh()
     {
-        if (currentlyDrawing) {
+        if (currentlyDrawing)
+        {
             drawPath(true);
         }
     }
@@ -831,16 +809,27 @@ public class CameraFlow : SonsMod
     public static void setPosition()
     {
         //check if camera is moving
-        if (isMoving) return;
+        if (isMoving)
+        {
+            return;
+        }
 
-        GameObject freeCam = GameObject.Find("MainCameraFP");
-        Quaternion playerRot = Quaternion.identity;
+        var freeCam = GameObject.Find("MainCameraFP");
+
+        _ = Quaternion.identity;
+
         //add the current position of the player to positions list
-        Vector3 playerPos = Vector3.zero;
-        if (freeCam) {
+        _ = Vector3.zero;
+
+        Quaternion playerRot;
+
+        Vector3 playerPos;
+        if (freeCam)
+        {
             playerPos = freeCam.transform.position;
             playerRot = freeCam.transform.rotation;
-        } else
+        }
+        else
         {
             playerPos = LocalPlayer.Transform.position;
             //increase height to be roughly head height
@@ -848,14 +837,14 @@ public class CameraFlow : SonsMod
 
             playerRot = LocalPlayer.Transform.rotation;
         }
-        
+
         // Get the Euler angles (rotation around x, y, and z axes) of the player and camera
-        Vector3 playerEulerAngles = playerRot.eulerAngles;
-        Vector3 cameraEulerAngles = freeCam.transform.rotation.eulerAngles;
+        var playerEulerAngles = playerRot.eulerAngles;
+        var cameraEulerAngles = freeCam.transform.rotation.eulerAngles;
 
         // Create a new rotation that combines the player's and camera's rotations
-        Quaternion combinedRot = Quaternion.Euler(cameraEulerAngles.x, playerEulerAngles.y, playerEulerAngles.z);
-        
+        var combinedRot = Quaternion.Euler(cameraEulerAngles.x, playerEulerAngles.y, playerEulerAngles.z);
+
         positions.Add(playerPos);
         rotations.Add(combinedRot);
         //if there are not enough positions to calculate the path show a message how many are left
@@ -866,15 +855,15 @@ public class CameraFlow : SonsMod
         else
         {
             SonsTools.ShowMessage("Position added to list");
-            CalculatePath(true);
+            CalculatePath();
         }
     }
 
-    public bool IsInFreeCam()
+    public static bool IsInFreeCam()
     {
         // Get the MainCameraFP and FreeCameraController objects
-        GameObject mainCameraFP = GameObject.Find("MainCameraFP");
-        GameObject freeCameraController = GameObject.Find("FreeCameraController");
+        var mainCameraFP = GameObject.Find("MainCameraFP");
+        var freeCameraController = GameObject.Find("FreeCameraController");
 
         // Check if MainCameraFP is a child of FreeCameraController
         if (mainCameraFP.transform.parent == freeCameraController.transform)
@@ -887,10 +876,10 @@ public class CameraFlow : SonsMod
         }
     }
 
-    public void SetCameraMovement(bool enable)
+    public static void SetCameraMovement(bool enable)
     {
         // Get the FreeCameraController object
-        GameObject freeCameraController = GameObject.Find("FreeCameraController");
+        var freeCameraController = GameObject.Find("FreeCameraController");
 
         // Get the Sons.Gui.FreeCameraController component
         var freeCameraControllerComponent = freeCameraController.GetComponent<Sons.Gui.FreeCameraController>();
@@ -899,10 +888,10 @@ public class CameraFlow : SonsMod
         freeCameraControllerComponent.enabled = enable;
     }
 
-    public void SetCameraMovementSittingFix(bool enable)
+    public static void SetCameraMovementSittingFix(bool enable)
     {
         // Get the FreeCameraController object
-        GameObject freeCameraController = GameObject.Find("MainCameraFP");
+        var freeCameraController = GameObject.Find("MainCameraFP");
 
         // Get the Sons.Gui.FreeCameraController component
         var freeCameraControllerComponent = freeCameraController.GetComponent<SimpleMouseRotator>();
@@ -910,7 +899,7 @@ public class CameraFlow : SonsMod
         // Enable or disable the component
         freeCameraControllerComponent.enabled = enable;
     }
- 
+
     public class SerializableVector3
     {
         public float X { get; set; }
@@ -919,9 +908,9 @@ public class CameraFlow : SonsMod
 
         public SerializableVector3(Vector3 vector)
         {
-            X = vector.x;
-            Y = vector.y;
-            Z = vector.z;
+            this.X = vector.x;
+            this.Y = vector.y;
+            this.Z = vector.z;
         }
     }
 
@@ -934,10 +923,10 @@ public class CameraFlow : SonsMod
 
         public SerializableQuaternion(Quaternion quaternion)
         {
-            X = quaternion.x;
-            Y = quaternion.y;
-            Z = quaternion.z;
-            W = quaternion.w;
+            this.X = quaternion.x;
+            this.Y = quaternion.y;
+            this.Z = quaternion.z;
+            this.W = quaternion.w;
         }
     }
 
@@ -956,16 +945,17 @@ public class CameraFlow : SonsMod
             var serializableRotations = rotations.Select(r => new SerializableQuaternion(r)).ToList();
 
             // Serialize the data to JSON
-            var data = new { 
-                fileName, 
-                positions = serializablePositions, 
+            var data = new
+            {
+                fileName,
+                positions = serializablePositions,
                 rotations = serializableRotations,
             };
             var options = new JsonSerializerOptions { ReferenceHandler = ReferenceHandler.Preserve };
-            string json = JsonSerializer.Serialize(data);
+            var json = JsonSerializer.Serialize(data);
 
             // Write the JSON to a file Mods\CameraFlow
-            string path = fileLocation + fileName + ".json";
+            var path = fileLocation + fileName + ".json";
             File.WriteAllText(path, json);
             SonsTools.ShowMessage(fileName + " Saved successfully!");
             return path;
@@ -977,13 +967,10 @@ public class CameraFlow : SonsMod
             return null;
         }
     }
-    
-    public static void toggleUI(bool enable)
-    {
-        Sons.Settings.GameplaySettings.SetAllGuiChanged(enable);
-    }
 
-    private void ToggleFreeCamera(bool enable)
+    public static void toggleUI(bool enable) => Sons.Settings.GameplaySettings.SetAllGuiChanged(enable);
+
+    private static void ToggleFreeCamera(bool enable)
     {
         if (enable)
         {
@@ -995,7 +982,7 @@ public class CameraFlow : SonsMod
         }
     }
 
-    private void ToggleGodMode(bool enable)
+    private static void ToggleGodMode(bool enable)
     {
         if (enable)
         {
@@ -1022,13 +1009,11 @@ public class CameraFlow : SonsMod
         public float W { get; set; }
     }
 
-    class CameraFlowData
+    private class CameraFlowData
     {
         public string FileName { get; set; }
         public List<SerializableVector3Load> Positions { get; set; }
         public List<SerializableQuaternionLoad> Rotations { get; set; }
-        public List<bool?> Easings { get; set; }
-        public List<float> EasingMultipliers { get; set; }
     }
 
 
@@ -1036,15 +1021,15 @@ public class CameraFlow : SonsMod
     {
         try
         {
-            string path = fileName;
-            string json = File.ReadAllText(path);
+            var path = fileName;
+            var json = File.ReadAllText(path);
 
             var options = new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
             };
 
-            CameraFlowData data = JsonSerializer.Deserialize<CameraFlowData>(json, options);
+            var data = JsonSerializer.Deserialize<CameraFlowData>(json, options);
 
             positions.Clear();
             rotations.Clear();
@@ -1058,7 +1043,7 @@ public class CameraFlow : SonsMod
                 rotations.Add(new Quaternion(item.X, item.Y, item.Z, item.W));
             }
 
-            CalculatePath(true);
+            CalculatePath();
             SonsTools.ShowMessage(path + " Loaded successfully!");
         }
         catch (Exception ex)
@@ -1089,44 +1074,46 @@ public class CameraFlow : SonsMod
         }
     }
 
-    //Commands
     [DebugCommand("DebugCameraFlow")]
     private void DebugCameraFlow()
     {
         RLog.Error("Debugging Camera Flow");
-        RLog.Msg("Speed: " + speed + "  Speed calculated:  " + Time.deltaTime * (speed * 0.1f));
+        RLog.Msg("Speed: " + speed);
         RLog.Msg("Positions: " + positions.Count);
         RLog.Msg("Rotations: " + rotations.Count);
 
         RLog.Msg("Segment Lengths: " + segmentLengths.Count);
         RLog.Msg("Total Length: " + totalLength);
 
-        RLog.Error("End Debugging Camera Flow");
-
         for (int i = 0; i < segmentStarts.Count; i++)
         {
             RLog.Msg("Segment " + i + " " + segmentStarts[i] + " Segment Position Count " + accumulatedLenghtsCalculated[i].Count + " T " + segmentTValuesCalculated[i].Count);
         }
-    }
 
+        RLog.Error("End Debugging Camera Flow");
+    }
 
     //SUI Bullshittery
 
-    public void MenuToggle()
+    public static void MenuToggle()
     {
         var panel = GetPanel("SidePanel");
         panelActive = !panelActive;
         if (panelActive)
         {
-            if (isMoving) return;
+            if (isMoving)
+            {
+                return;
+            }
+
             SonsTools.ShowMessage("Opening Camera Flow Menu");
-            panel.Opacity(Config.Opacity.Value);
-            panel.Active(true);
+            _ = panel.Opacity(Config.Opacity.Value);
+            _ = panel.Active(true);
         }
         else
         {
             SonsTools.ShowMessage("Closing Camera Flow Menu");
-            panel.Active(false);
+            _ = panel.Active(false);
         }
     }
 }
