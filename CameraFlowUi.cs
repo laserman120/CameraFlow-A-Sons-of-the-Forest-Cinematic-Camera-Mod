@@ -164,6 +164,10 @@ public class CameraFlowUi
             }
             SonsTools.ShowMessage("Deleting Point " + selectedPoint.Value + "...");
             destroyPoint(CameraFlow.selectedPoint);
+            if(CameraFlow.selectedPoint == CameraFlow.positions.Count)
+            {
+                CameraFlow.selectedPoint -= 1;
+            }
             CameraFlow.CalculatePath();
         });
         _ = settingsScroll.Add(deleteButtonContainer);
@@ -198,7 +202,7 @@ public class CameraFlowUi
             .OnClick(() =>
             {
                 SonsTools.ShowMessage("Deleting All Points...");
-                CameraFlow.removePathAndPositions();
+                CameraFlow.clearCalculatedPaths();
             });
         _ = settingsScroll.Add(deletePathContainer);
 

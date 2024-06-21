@@ -358,6 +358,20 @@ public class CameraFlow : SonsMod
             CalculatedSegmentLenghts.Add(0);
             segmentStarts.Add(0);
         }
+
+        while (segmentsCalculatedUsedPositions.Count > segmentIndex)
+        {
+            segmentsCalculatedUsedPositions.RemoveAt(segmentsCalculatedUsedPositions.Count - 1);
+            segmentsCalculatedUsedRotations.RemoveAt(segmentsCalculatedUsedRotations.Count - 1);
+            segmentsCalculatedPath.RemoveAt(segmentsCalculatedPath.Count - 1);
+            segmentsCalculatedRotations.RemoveAt(segmentsCalculatedRotations.Count - 1);
+            accumulatedLenghtsCalculated.RemoveAt(accumulatedLenghtsCalculated.Count - 1);
+            segmentTValuesCalculated.RemoveAt(segmentTValuesCalculated.Count - 1);
+            drawingPathCalculated.RemoveAt(drawingPathCalculated.Count - 1);
+            CalculatedSegmentLenghts.RemoveAt(CalculatedSegmentLenghts.Count - 1);
+            segmentStarts.RemoveAt(segmentStarts.Count - 1);
+        }
+
     }
 
     public static Vector3 CalculateBSplinePoint(float t, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3)
@@ -454,7 +468,7 @@ public class CameraFlow : SonsMod
         }
     }
 
-    private static void clearCalculatedPaths()
+    public static void clearCalculatedPaths()
     {
         segmentsCalculatedUsedPositions.Clear();
         segmentsCalculatedUsedRotations.Clear();
@@ -593,13 +607,13 @@ public class CameraFlow : SonsMod
 
         // Set the camera's rotation
         mainCamera.transform.rotation = targetRotation;
-
+        /*  Debug Logging
         if (Mathf.Abs(distanceToLast - desiredDistance) > 0.005 && isMoving)
         {
             RLog.Error("Step too big: " + desiredDistance + " vs " + distanceToLast);
             RLog.Msg("Moved to position " + totalMovedDistance + " of " + totalLength + " \nFound T " + T + " at " + accumulatedLenghtsCalculated[targetIndex][tIndex] + " \nCurrent Segment: " + targetIndex + " with " + movedDistance + " of total " + segmentStarts[targetIndex]);
         }
-
+        */
         lastPosition = targetPoint;
         lastFoundSegment = targetIndex;
     }
