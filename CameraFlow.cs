@@ -465,6 +465,10 @@ public class CameraFlow : SonsMod
                 freeCam.transform.rotation = rotations[0];
                 delay = Config.Delay.Value;
             }
+            if(Config.DebugLog.Value)
+            {
+                RLog.Msg("Starting Movement");
+            }
             isMoving = true;
         }
     }
@@ -568,25 +572,34 @@ public class CameraFlow : SonsMod
         var desiredDistance = distanceIncrement * (Time.deltaTime / fixedTimeStep);
         var targetIndex = lastFoundSegment;
 
+        if (totalMovedDistance >= totalLength)
+        {
+            EndMovement();
+            return; // Exit the function early
+        }
+
         if (movedDistance >= segmentStarts[targetIndex])
         {
             movedDistance -= segmentStarts[targetIndex];
             targetIndex += 1;
             lastFoundT = 0;
+
+            if(targetIndex == accumulatedLenghtsCalculated.Count)
+            {
+                EndMovement();
+                return; // Exit the function early
+            }
+
+            if (Config.DebugLog.Value)
+            {
+                RLog.Error("Segment Changed!");
+            }
         }
 
         // Calculate T value within the current segment, start with the search at the last found index to speed up the search
         var tIndex = FindIndexForDistance(movedDistance, accumulatedLenghtsCalculated[targetIndex], lastFoundT);
         var T = segmentTValuesCalculated[targetIndex][tIndex];
         lastFoundT = tIndex;
-
-        if (totalMovedDistance >= totalLength)
-        {
-            // Stop movement
-            StopMoving();
-            SonsTools.ShowMessage("Camera flow ended");
-            return; // Exit the function early
-        }
 
         // Evaluate B-spline and move the object
         var targetPoint = CalculateBSplinePoint(T,
@@ -607,15 +620,26 @@ public class CameraFlow : SonsMod
 
         // Set the camera's rotation
         mainCamera.transform.rotation = targetRotation;
-        /*  Debug Logging
-        if (Mathf.Abs(distanceToLast - desiredDistance) > 0.005 && isMoving)
+        if (Config.DebugLog.Value)
         {
-            RLog.Error("Step too big: " + desiredDistance + " vs " + distanceToLast);
+            RLog.Msg("Step Information: " + desiredDistance + " vs " + distanceToLast);
             RLog.Msg("Moved to position " + totalMovedDistance + " of " + totalLength + " \nFound T " + T + " at " + accumulatedLenghtsCalculated[targetIndex][tIndex] + " \nCurrent Segment: " + targetIndex + " with " + movedDistance + " of total " + segmentStarts[targetIndex]);
         }
-        */
+        
+        
         lastPosition = targetPoint;
         lastFoundSegment = targetIndex;
+    }
+    private static void EndMovement()
+    {
+        // Stop movement
+        StopMoving();
+        SonsTools.ShowMessage("Camera flow ended");
+        if (Config.DebugLog.Value)
+        {
+            RLog.Msg("Movement Finished. Printing debug information!");
+            DebugCameraFlow();
+        }
     }
 
     // Helper method for search
@@ -1089,7 +1113,7 @@ public class CameraFlow : SonsMod
     }
 
     [DebugCommand("DebugCameraFlow")]
-    private void DebugCameraFlow()
+    private static void DebugCameraFlow()
     {
         RLog.Error("End Debugging Camera Flow");
         for (int i = 0; i < segmentStarts.Count; i++)
@@ -1108,7 +1132,7 @@ public class CameraFlow : SonsMod
     }
 
 
-    private int totalCalculatedPoints()
+    private static int totalCalculatedPoints()
     {
         var totalCalculatedPoints = 0;
         for (var i = 0; i < segmentsCalculatedPath.Count; i++)

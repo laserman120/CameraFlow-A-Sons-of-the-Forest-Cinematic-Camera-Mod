@@ -15,6 +15,7 @@ public static class Config
     public static ConfigEntry<bool> Godmode { get; private set; }
     public static ConfigEntry<int> Resolution { get; private set; }
     public static ConfigEntry<bool> ForceUi { get; private set; }
+    public static ConfigEntry<bool> DebugLog { get; private set; }
 
 
     public static void Init()
@@ -83,6 +84,12 @@ public static class Config
             false,
             "Force Enable UI",
             "Forces UI to be enabled on startup, necessary when the game is closed while the camera is moving");
+
+        DebugLog = Category.CreateEntry(
+            "debug_log",
+            false,
+            "Enable Debug Logging",
+            "When enabled it will log detailed movement information. Only enable when necessary!");
     }
 
     // Same as the callback in "CreateSettings". Called when the settings ui is closed.
