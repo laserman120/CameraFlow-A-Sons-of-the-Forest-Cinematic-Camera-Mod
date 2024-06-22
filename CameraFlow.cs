@@ -230,6 +230,7 @@ public class CameraFlow : SonsMod
                         segmentChanged = true;
                     }
 
+                    //if resoltion or speed has changed, force a full recalculation
                     if (forceFullRecalculation)
                     {
                         segmentChanged = true;
@@ -480,7 +481,6 @@ public class CameraFlow : SonsMod
         CalculatedSegmentLenghts.Clear();
         segmentStarts.Clear();
         removePathAndPositions();
-
     }
 
     public static void StopMoving()
@@ -1091,22 +1091,32 @@ public class CameraFlow : SonsMod
     [DebugCommand("DebugCameraFlow")]
     private void DebugCameraFlow()
     {
-        RLog.Error("Debugging Camera Flow");
-        RLog.Msg("Speed: " + speed);
-        RLog.Msg("Positions: " + positions.Count);
-        RLog.Msg("Rotations: " + rotations.Count);
-
-        RLog.Msg("Segment Lengths: " + segmentLengths.Count);
-        RLog.Msg("Total Length: " + totalLength);
-
+        RLog.Error("End Debugging Camera Flow");
         for (int i = 0; i < segmentStarts.Count; i++)
         {
             RLog.Msg("Segment " + i + " " + segmentStarts[i] + " Segment Position Count " + accumulatedLenghtsCalculated[i].Count + " T " + segmentTValuesCalculated[i].Count);
         }
-
-        RLog.Error("End Debugging Camera Flow");
+        RLog.Msg("Segment Details:");
+        RLog.Msg("Total Calculated Points: " + totalCalculatedPoints());
+        RLog.Msg("Total Length: " + totalLength);
+        RLog.Msg("Segment Lengths Amount: " + segmentLengths.Count);
+        RLog.Msg("Rotations: " + rotations.Count);
+        RLog.Msg("Positions: " + positions.Count);
+        RLog.Msg("Speed: " + speed);
+        RLog.Msg("Resolution: " + resolution);
+        RLog.Error("Debugging Camera Flow");
     }
 
+
+    private int totalCalculatedPoints()
+    {
+        var totalCalculatedPoints = 0;
+        for (var i = 0; i < segmentsCalculatedPath.Count; i++)
+        {
+            totalCalculatedPoints += segmentsCalculatedPath[i].Count;
+        }
+        return totalCalculatedPoints;
+    }
     //SUI Bullshittery
 
     public static void MenuToggle()

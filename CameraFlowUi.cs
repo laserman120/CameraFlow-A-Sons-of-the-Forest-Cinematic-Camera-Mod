@@ -168,6 +168,10 @@ public class CameraFlowUi
             {
                 CameraFlow.selectedPoint -= 1;
             }
+            if(CameraFlow.positions.Count < 4)
+            {
+                SonsTools.ShowMessage((4 - CameraFlow.positions.Count) + " more needed to calculate path");
+            }
             CameraFlow.CalculatePath();
         });
         _ = settingsScroll.Add(deleteButtonContainer);
@@ -203,6 +207,7 @@ public class CameraFlowUi
             {
                 SonsTools.ShowMessage("Deleting All Points...");
                 CameraFlow.clearCalculatedPaths();
+                CameraFlow.selectedPoint = 0;
             });
         _ = settingsScroll.Add(deletePathContainer);
 
@@ -270,6 +275,7 @@ public class CameraFlowUi
     private static void createLoadPathContainer(SContainerOptions settingsScroll, string label, string path)
     {
         var size = 10;
+        bool deletionCheck = false;
 
         var loadPathContainer = SContainer.Background(Color.gray, EBackground.RoundOutline).Size(-20, 40).Horizontal(2, "EC");
         _ = settingsScroll.Add(loadPathContainer);
@@ -281,32 +287,65 @@ public class CameraFlowUi
         _ = loadPathContainer.Add(labelContainer);
 
 
-        var loadButtonContainer = SContainer.Background(Color.gray, EBackground.RoundOutline).Size(-10, -20).Vertical().PWidth(size).MWidth(size).Anchor(AnchorType.MiddleRight)
-            - SBgButton.Text("Load")
+        var loadButtonContainer = SContainer.Background(Color.gray, EBackground.RoundOutline).Size(-10, -20).Vertical().PWidth(size).MWidth(size).Anchor(AnchorType.MiddleRight);
+
+        _ = loadPathContainer.Add(loadButtonContainer);
+
+        var loadButton = SBgButton.Text("Load")
             .FontColor(Color.green)
             .Color(Color.black.WithAlpha(0f))
             .Anchor(AnchorType.Fill)
             .Background(EBackground.RoundOutline)
             .OnClick(() =>
             {
-                SonsTools.ShowMessage("Loading Path...");
-                CameraFlow.LoadCameraFlowData(path);
+                if (deletionCheck)
+                {
+                    SonsTools.ShowMessage("Deleting Path...");
+                    CameraFlow.DeleteCameraFlowData(path);
+                    loadPathContainer.Remove();
+                } 
+                else
+                {
+                    SonsTools.ShowMessage("Loading Path...");
+                    CameraFlow.LoadCameraFlowData(path);
+                }
             });
-        _ = loadPathContainer.Add(loadButtonContainer);
+        _ = loadButtonContainer.Add(loadButton);
 
-        var deleteButtonContainer = SContainer.Background(Color.gray, EBackground.RoundOutline).Size(-10, -20).Vertical().PWidth(size).MWidth(size).Anchor(AnchorType.MiddleRight)
-            - SBgButton.Text("Delete")
+        var deleteButtonContainer = SContainer.Background(Color.gray, EBackground.RoundOutline).Size(-10, -20).Vertical().PWidth(size).MWidth(size).Anchor(AnchorType.MiddleRight);
+
+        _ = loadPathContainer.Add(deleteButtonContainer);
+
+        var deleteButton = SBgButton.Text("Delete")
             .FontColor(Color.red)
             .Color(Color.black.WithAlpha(0f))
             .Anchor(AnchorType.Fill)
-            .Background(EBackground.RoundOutline)
-            .OnClick(() =>
+            .Background(EBackground.RoundOutline);
+
+        deleteButton.OnClick(() =>
+        {
+            if (!deletionCheck)
             {
-                SonsTools.ShowMessage("Deleting Path...");
-                CameraFlow.DeleteCameraFlowData(path);
-                loadPathContainer.Remove();
-            });
-        _ = loadPathContainer.Add(deleteButtonContainer);
+                loadButton.Text("Delete");
+                loadButton.FontColor(Color.red);
+                loadButton.Tooltip("Are you sure? This cannot be undone");
+                deleteButton.Text("Cancel");
+                deleteButton.FontColor(Color.green);
+                deletionCheck = true;
+            } 
+            else
+            {
+                loadButton.Text("Load");
+                loadButton.FontColor(Color.green);
+                deleteButton.Text("Delete");
+                deleteButton.FontColor(Color.red);
+                deletionCheck = false;
+            }
+        });
+            
+        _ = deleteButtonContainer.Add(deleteButton);
+
+
     }
 
 

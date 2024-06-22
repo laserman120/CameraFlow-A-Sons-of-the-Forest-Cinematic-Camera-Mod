@@ -17,7 +17,6 @@ public static class Config
     public static ConfigEntry<bool> ForceUi { get; private set; }
 
 
-
     public static void Init()
     {
         Category = ConfigSystem.CreateFileCategory("Base Configuration", "Base Configuration", "CameraFlow.cfg");
@@ -74,7 +73,7 @@ public static class Config
 
         Resolution = Category.CreateEntry(
         "resolution",
-        100,
+        250,
         "Calculation Resolution - Default 100",
         "How many points will be calculated per in game unit. Changing this should not be necessary!");
         Resolution.SetRange(1, 1000);
